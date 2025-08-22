@@ -3,6 +3,8 @@
 
 ## Include sources
 !/cmd/
+!/internal/
+!/examples/
 
 # Backend
 /vendor

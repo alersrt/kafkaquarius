@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -15,27 +16,49 @@ var (
 )
 
 type Message struct {
+	Record *kafka.Message `json:"record"`
 }
 
 func main() {
 	cfg := config()
 
-	file, err := os.ReadFile(cfg.FilterPath)
+	filter, err := os.ReadFile(cfg.FilterPath)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
+		os.Exit(ExitCodeErr)
 	}
 
 	env, err := cel.NewEnv(
-		cel.Types(&kafka.Message{}),
-		cel.Variable("record", cel.ObjectType("Message")),
+		cel.Variable("record", cel.DynType),
 	)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
-	fmt.Printf("%+v", env)
 
-	fmt.Printf("%+v\n", file)
+	ast, iss := env.Compile(string(filter))
+	if iss != nil && iss.Err() != nil {
+		slog.Error(fmt.Sprintf("%+v", err))
+		os.Exit(ExitCodeErr)
+	}
+
+	prog, err := env.Program(ast)
+	if err != nil {
+		slog.Error(fmt.Sprintf("%+v", err))
+		os.Exit(ExitCodeErr)
+	}
+
+	var inInterface map[string]any
+	inrec, _ := json.Marshal(&Message{&kafka.Message{Key: []byte("test_key")}})
+	json.Unmarshal(inrec, &inInterface)
+
+	eval, _, err := prog.Eval(inInterface)
+	if err != nil {
+		slog.Error(fmt.Sprintf("%+v", err))
+		os.Exit(ExitCodeErr)
+	}
+
+	fmt.Printf("%+v", eval)
 	os.Exit(ExitCodeDone)
 }
 
@@ -48,7 +71,7 @@ type Config struct {
 	FilterPath    string `json:"filter_path"`
 }
 
-// config parses os.Args and returns list of parsed values in the Config struct.
+// config parses flags and returns list of parsed values in the Config struct.
 func config() *Config {
 	cfg := new(Config)
 
