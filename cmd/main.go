@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/google/cel-go/cel"
+	"log/slog"
 	"os"
 )
 
@@ -13,7 +16,23 @@ var (
 
 func main() {
 	cfg := config()
-	fmt.Printf("%+v\n", cfg)
+
+	file, err := os.ReadFile(cfg.FilterPath)
+	if err != nil {
+		slog.Error(fmt.Sprintf("%+v", err))
+	}
+
+	env, err := cel.NewEnv(
+		cel.Types(&kafka.Message{}),
+		cel.Variable("record", cel.ObjectType("kafka.Message")),
+	)
+	if err != nil {
+		slog.Error(fmt.Sprintf("%+v", err))
+		os.Exit(ExitCodeErr)
+	}
+	fmt.Printf("%+v", env)
+
+	fmt.Printf("%+v\n", file)
 	os.Exit(ExitCodeDone)
 }
 
