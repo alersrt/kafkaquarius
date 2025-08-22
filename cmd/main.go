@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/google/cel-go/cel"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"kafkaquarius/internal"
 	"log/slog"
 	"os"
 	"time"
@@ -15,57 +15,37 @@ var (
 	ExitCodeErr  = 0
 )
 
-type Message struct {
-	Timestamp time.Time `json:"timestamp"`
-	Key       any       `json:"key"`
-	Value     any       `json:"value"`
-	Headers   []any     `json:"headers"`
-}
-
 func main() {
 	cfg := config()
 
-	filter, err := os.ReadFile(cfg.FilterPath)
+	filter, err := internal.NewFilter(cfg.FilterPath)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
 
-	env, err := cel.NewEnv(
-		cel.Variable("key", cel.AnyType),
-		cel.Variable("value", cel.AnyType),
-		cel.Variable("headers", cel.ListType(cel.AnyType)),
-		cel.Variable("timestamp", cel.TimestampType),
-	)
+	data, err := internal.FromKafka(&kafka.Message{
+		Key:   []byte("{\"part\":1}"),
+		Value: []byte("{\"some\":0}"),
+		Headers: []kafka.Header{{
+			Key:   "key1",
+			Value: []byte("value"),
+		}},
+		Timestamp: time.Now(),
+	})
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
 
-	ast, iss := env.Compile(string(filter))
-	if iss != nil && iss.Err() != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
-		os.Exit(ExitCodeErr)
-	}
-
-	prog, err := env.Program(ast)
+	ok, err := filter.Eval(data)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
 
-	var inInterface map[string]any
+	fmt.Printf("%+v", ok)
 
-	inrec, _ := json.Marshal(&Message{Key: "test_key", Value: map[string]any{"some": 0}})
-	_ = json.Unmarshal(inrec, &inInterface)
-
-	eval, _, err := prog.Eval(inInterface)
-	if err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
-		os.Exit(ExitCodeErr)
-	}
-
-	fmt.Printf("%+v", eval)
 	os.Exit(ExitCodeDone)
 }
 
