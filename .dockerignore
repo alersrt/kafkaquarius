@@ -1,0 +1,19 @@
+## Ignore all files
+*
+
+## Include project files
+
+# Sources
+!/cmd/
+!/internal/
+!/pkg/
+
+# Go
+!go.mod
+!/.go
+!/build
+!/vendor
+
+## Exclude IDE files
+# JetBrains
+*.iml
