@@ -1,1 +1,4 @@
-value.some == 0
+Value.some == 0
+&& Headers.key1 == 'value'
+&& Headers.size() != 0
+&& Timestamp < '2026-01-01'

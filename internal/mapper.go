@@ -6,42 +6,34 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-func FromKafka(msg *kafka.Message) (map[string]any, error) {
-	//var key map[string]any
-	//err := json.Unmarshal(msg.Key, &key)
-	//if err != nil {
-	//	return nil, fmt.Errorf("map: key: %v", err)
-	//}
-	//var value map[string]any
-	//err = json.Unmarshal(msg.Value, &value)
-	//if err != nil {
-	//	return nil, fmt.Errorf("map: value: %v", err)
-	//}
-	//headers := make(map[string]any)
-	//for _, hdr := range msg.Headers {
-	//	hdrVal := make(map[string]any)
-	//	err = json.Unmarshal(hdr.Value, &hdrVal)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("map: headers: %v", err)
-	//	}
-	//	headers[hdr.Key] = hdrVal
-	//}
-
-	//return map[string]any{
-	//	VarKey:   key,
-	//	VarValue: value,
-	//	//VarHeaders:   headers,
-	//	VarTimestamp: msg.Timestamp,
-	//}, nil
-
-	mars, err := json.Marshal(msg)
-	if err != nil {
-		return nil, fmt.Errorf("map: from kafka: %v", err)
-	}
+func JsonDes(value []byte) (map[string]any, error) {
 	var res map[string]any
-	err = json.Unmarshal(mars, &res)
+	err := json.Unmarshal(value, &res)
 	if err != nil {
-		return nil, fmt.Errorf("map: from kafka: %v", err)
+		return nil, fmt.Errorf("map: json des: %v", err)
 	}
 	return res, nil
+}
+
+func StringDes(value []byte) string {
+	return string(value)
+}
+
+func FromKafka(msg *kafka.Message) (map[string]any, error) {
+	key := StringDes(msg.Key)
+	value, err := JsonDes(msg.Value)
+	if err != nil {
+		return nil, fmt.Errorf("map: from kafka: %v", err)
+	}
+	headers := make(map[string]any, len(msg.Headers))
+	for _, hdr := range msg.Headers {
+		headers[hdr.Key] = StringDes(hdr.Value)
+	}
+
+	return map[string]any{
+		VarKey:       key,
+		VarValue:     value,
+		VarHeaders:   headers,
+		VarTimestamp: msg.Timestamp,
+	}, nil
 }

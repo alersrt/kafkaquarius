@@ -3,14 +3,17 @@ package internal
 import (
 	"fmt"
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/ext"
 	"os"
+	"reflect"
+	"time"
 )
 
 var (
-	VarKey       = "key"
-	VarValue     = "value"
-	VarTimestamp = "timestamp"
-	VarHeaders   = "headers"
+	VarKey       = "Key"
+	VarValue     = "Value"
+	VarTimestamp = "Timestamp"
+	VarHeaders   = "Headers"
 )
 
 type Filter struct {
@@ -24,10 +27,11 @@ func NewFilter(path string) (*Filter, error) {
 	}
 
 	env, err := cel.NewEnv(
-		cel.Variable(VarKey, cel.AnyType),
+		cel.Variable(VarKey, cel.StringType),
 		cel.Variable(VarValue, cel.AnyType),
-		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable(VarTimestamp, cel.TimestampType),
+		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.StringType)),
+		cel.Variable(VarTimestamp, cel.ObjectType("time.Time")),
+		ext.NativeTypes(reflect.TypeFor[time.Time]()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)
