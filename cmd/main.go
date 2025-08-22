@@ -14,6 +14,9 @@ var (
 	ExitCodeErr  = 0
 )
 
+type Message struct {
+}
+
 func main() {
 	cfg := config()
 
@@ -24,7 +27,7 @@ func main() {
 
 	env, err := cel.NewEnv(
 		cel.Types(&kafka.Message{}),
-		cel.Variable("record", cel.ObjectType("kafka.Message")),
+		cel.Variable("record", cel.ObjectType("Message")),
 	)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
