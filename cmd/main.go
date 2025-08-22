@@ -25,7 +25,7 @@ func main() {
 	}
 
 	data, err := internal.FromKafka(&kafka.Message{
-		Key:   []byte("{\"part\":1}"),
+		Key:   []byte("test_key"),
 		Value: []byte("{\"some\":0}"),
 		Headers: []kafka.Header{{
 			Key:   "key1",
