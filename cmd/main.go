@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
 	"log/slog"
 	"os"
+	"time"
 )
 
 var (
@@ -16,7 +16,10 @@ var (
 )
 
 type Message struct {
-	Record *kafka.Message `json:"record"`
+	Timestamp time.Time `json:"timestamp"`
+	Key       any       `json:"key"`
+	Value     any       `json:"value"`
+	Headers   []any     `json:"headers"`
 }
 
 func main() {
@@ -29,7 +32,10 @@ func main() {
 	}
 
 	env, err := cel.NewEnv(
-		cel.Variable("record", cel.DynType),
+		cel.Variable("key", cel.AnyType),
+		cel.Variable("value", cel.AnyType),
+		cel.Variable("headers", cel.ListType(cel.AnyType)),
+		cel.Variable("timestamp", cel.TimestampType),
 	)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
@@ -49,8 +55,9 @@ func main() {
 	}
 
 	var inInterface map[string]any
-	inrec, _ := json.Marshal(&Message{&kafka.Message{Key: []byte("test_key")}})
-	json.Unmarshal(inrec, &inInterface)
+
+	inrec, _ := json.Marshal(&Message{Key: "test_key", Value: map[string]any{"some": 0}})
+	_ = json.Unmarshal(inrec, &inInterface)
 
 	eval, _, err := prog.Eval(inInterface)
 	if err != nil {
