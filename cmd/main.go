@@ -3,11 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal"
 	"log/slog"
 	"os"
-	"time"
 )
 
 var (
@@ -18,33 +16,17 @@ var (
 func main() {
 	cfg := config()
 
-	filter, err := internal.NewFilter(cfg.FilterPath)
+	filterContent, err := os.ReadFile(cfg.FilterPath)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
 
-	data, err := internal.FromKafka(&kafka.Message{
-		Key:   []byte("test_key"),
-		Value: []byte("{\"some\":0}"),
-		Headers: []kafka.Header{{
-			Key:   "key1",
-			Value: []byte("value"),
-		}},
-		Timestamp: time.Now(),
-	})
+	_, err = internal.NewFilter(string(filterContent))
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
-
-	ok, err := filter.Eval(data)
-	if err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
-		os.Exit(ExitCodeErr)
-	}
-
-	fmt.Printf("%+v", ok)
 
 	os.Exit(ExitCodeDone)
 }
