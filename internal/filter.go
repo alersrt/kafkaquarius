@@ -33,7 +33,7 @@ func NewFilter(filter string) (*Filter, error) {
 	return &Filter{prog: prog}, nil
 }
 
-func (f *Filter) Eval(data any) (bool, error) {
+func (f *Filter) Eval(data map[string]any) (bool, error) {
 	eval, _, err := f.prog.Eval(data)
 	if err != nil {
 		return false, fmt.Errorf("filter: eval: %v", err)
