@@ -12,7 +12,7 @@ Value.some == 0
 && Headers.key1 == 'value'
 && Headers.size() != 0
 && Key.kf == 'test_key'
-&& Ts > timestamp('1970-01-01T00:00:00.000Z')
+&& Timestamp > timestamp('1970-01-01T00:00:00.000Z')
 `
 	testedUnit, err := NewFilter(filterContent)
 	if err != nil {

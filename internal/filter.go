@@ -5,13 +5,6 @@ import (
 	"github.com/google/cel-go/cel"
 )
 
-var (
-	VarKey       = "Key"
-	VarValue     = "Value"
-	VarTimestamp = "Ts"
-	VarHeaders   = "Headers"
-)
-
 type Filter struct {
 	prog cel.Program
 }

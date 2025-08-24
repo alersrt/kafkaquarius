@@ -6,6 +6,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+var (
+	VarKey       = "Key"
+	VarValue     = "Value"
+	VarTimestamp = "Timestamp"
+	VarHeaders   = "Headers"
+)
+
 func Des(value []byte) any {
 	var umars map[string]any
 	err := json.Unmarshal(value, &umars)
