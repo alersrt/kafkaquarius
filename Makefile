@@ -76,7 +76,7 @@ deps: go.deps
 # Go commands #
 ###############
 
-pkgname = wombat
+pkgname = kafkaquarius
 pkgver ?= current
 builddir ?= ./build/bin
 mainpath ?= ./cmd/main.go
