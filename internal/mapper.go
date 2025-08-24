@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func JsonDes(value []byte) (map[string]any, error) {
@@ -34,6 +35,6 @@ func FromKafka(msg *kafka.Message) (map[string]any, error) {
 		VarKey:       key,
 		VarValue:     value,
 		VarHeaders:   headers,
-		VarTimestamp: msg.Timestamp,
+		VarTimestamp: timestamppb.New(msg.Timestamp),
 	}, nil
 }

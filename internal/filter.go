@@ -3,11 +3,6 @@ package internal
 import (
 	"fmt"
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/operators"
-	"github.com/google/cel-go/common/types/traits"
-	"github.com/google/cel-go/ext"
-	"reflect"
-	"time"
 )
 
 var (
@@ -22,35 +17,11 @@ type Filter struct {
 }
 
 func NewFilter(filter string) (*Filter, error) {
-	TimeType := cel.ObjectType("time.Time", traits.AdderType, traits.ComparerType, traits.ReceiverType, traits.SubtractorType)
 	env, err := cel.NewEnv(
 		cel.Variable(VarKey, cel.StringType),
 		cel.Variable(VarValue, cel.AnyType),
 		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable(VarTimestamp, TimeType),
-		ext.NativeTypes(reflect.TypeFor[time.Time]()),
-		cel.Function(
-			"time",
-			cel.Overload("time_to_time", []*cel.Type{TimeType}, TimeType),
-			cel.Overload("int_to_time", []*cel.Type{cel.IntType}, TimeType),
-			cel.Overload("string_to_time", []*cel.Type{cel.StringType}, TimeType),
-		),
-		cel.Function(
-			operators.Less,
-			cel.Overload("less_time", []*cel.Type{TimeType, TimeType}, cel.BoolType),
-		),
-		cel.Function(
-			operators.LessEquals,
-			cel.Overload("less_equals_time", []*cel.Type{TimeType, TimeType}, cel.BoolType),
-		),
-		cel.Function(
-			operators.Greater,
-			cel.Overload("greater_time", []*cel.Type{TimeType, TimeType}, cel.BoolType),
-		),
-		cel.Function(
-			operators.GreaterEquals,
-			cel.Overload("greater_equals_time", []*cel.Type{TimeType, TimeType}, cel.BoolType),
-		),
+		cel.Variable(VarTimestamp, cel.TimestampType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)
