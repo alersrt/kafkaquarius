@@ -18,7 +18,7 @@ type Filter struct {
 
 func NewFilter(filter string) (*Filter, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(VarKey, cel.StringType),
+		cel.Variable(VarKey, cel.AnyType),
 		cel.Variable(VarValue, cel.AnyType),
 		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
 		cel.Variable(VarTimestamp, cel.TimestampType),

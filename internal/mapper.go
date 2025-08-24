@@ -2,38 +2,29 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func JsonDes(value []byte) (map[string]any, error) {
-	var res map[string]any
-	err := json.Unmarshal(value, &res)
+func Des(value []byte) any {
+	var umars map[string]any
+	err := json.Unmarshal(value, &umars)
 	if err != nil {
-		return nil, fmt.Errorf("map: json des: %v", err)
+		return string(value)
+	} else {
+		return umars
 	}
-	return res, nil
-}
-
-func StringDes(value []byte) string {
-	return string(value)
 }
 
 func FromKafka(msg *kafka.Message) (map[string]any, error) {
-	key := StringDes(msg.Key)
-	value, err := JsonDes(msg.Value)
-	if err != nil {
-		return nil, fmt.Errorf("map: from kafka: %v", err)
-	}
 	headers := make(map[string]any, len(msg.Headers))
 	for _, hdr := range msg.Headers {
-		headers[hdr.Key] = StringDes(hdr.Value)
+		headers[hdr.Key] = Des(hdr.Value)
 	}
 
 	return map[string]any{
-		VarKey:       key,
-		VarValue:     value,
+		VarKey:       Des(msg.Key),
+		VarValue:     Des(msg.Value),
 		VarHeaders:   headers,
 		VarTimestamp: timestamppb.New(msg.Timestamp),
 	}, nil

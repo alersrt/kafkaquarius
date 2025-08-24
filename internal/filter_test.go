@@ -11,6 +11,7 @@ func TestFilter(t *testing.T) {
 Value.some == 0
 && Headers.key1 == 'value'
 && Headers.size() != 0
+&& Key.kf == 'test_key'
 && Ts > timestamp('1970-01-01T00:00:00.000Z')
 `
 	testedUnit, err := NewFilter(filterContent)
@@ -19,7 +20,7 @@ Value.some == 0
 	}
 
 	data, err := FromKafka(&kafka.Message{
-		Key:   []byte("test_key"),
+		Key:   []byte("{\"kf\":\"test_key\"}"),
 		Value: []byte("{\"some\":0}"),
 		Headers: []kafka.Header{{
 			Key:   "key1",
