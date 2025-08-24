@@ -1,4 +1,4 @@
-package internal
+package mapper
 
 import (
 	"encoding/json"

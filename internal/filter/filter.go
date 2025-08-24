@@ -1,8 +1,9 @@
-package internal
+package filter
 
 import (
 	"fmt"
 	"github.com/google/cel-go/cel"
+	"kafkaquarius/internal/mapper"
 )
 
 type Filter struct {
@@ -11,10 +12,10 @@ type Filter struct {
 
 func NewFilter(filter string) (*Filter, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(VarKey, cel.AnyType),
-		cel.Variable(VarValue, cel.AnyType),
-		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable(VarTimestamp, cel.TimestampType),
+		cel.Variable(mapper.VarKey, cel.AnyType),
+		cel.Variable(mapper.VarValue, cel.AnyType),
+		cel.Variable(mapper.VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
+		cel.Variable(mapper.VarTimestamp, cel.TimestampType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)

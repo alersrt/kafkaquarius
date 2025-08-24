@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"kafkaquarius/internal"
+	"kafkaquarius/internal/filter"
 	"log/slog"
 	"os"
 )
@@ -28,7 +28,7 @@ func main() {
 		os.Exit(ExitCodeErr)
 	}
 
-	_, err = internal.NewFilter(string(filterContent))
+	_, err = filter.NewFilter(string(filterContent))
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
