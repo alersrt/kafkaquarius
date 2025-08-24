@@ -3,6 +3,10 @@ package internal
 import (
 	"fmt"
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types/traits"
+	"github.com/google/cel-go/ext"
+	"reflect"
+	"time"
 )
 
 var (
@@ -17,13 +21,22 @@ type Filter struct {
 }
 
 func NewFilter(filter string) (*Filter, error) {
-	//timeType := cel.ObjectType("time.Time", traits.AdderType, traits.ComparerType, traits.ReceiverType, traits.SubtractorType)
-
+	TimeType := cel.ObjectType("time.Time", traits.AdderType, traits.ComparerType, traits.ReceiverType, traits.SubtractorType)
 	env, err := cel.NewEnv(
 		cel.Variable(VarKey, cel.StringType),
 		cel.Variable(VarValue, cel.AnyType),
 		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable(VarTimestamp, cel.TimestampType),
+		cel.Variable(VarTimestamp, TimeType),
+		ext.NativeTypes(reflect.TypeFor[time.Time]()),
+		cel.Function(
+			"time",
+			cel.Overload("time_to_time", []*cel.Type{TimeType}, TimeType),
+			cel.Overload("int_to_time", []*cel.Type{cel.IntType}, TimeType),
+			cel.Overload("string_to_time", []*cel.Type{cel.StringType}, TimeType),
+			cel.Overload("string_to_time", []*cel.Type{cel.StringType}, TimeType),
+			cel.Overload("string_to_time", []*cel.Type{cel.StringType}, TimeType),
+			cel.Overload("string_to_time", []*cel.Type{cel.StringType}, TimeType),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)
