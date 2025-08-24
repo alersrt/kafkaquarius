@@ -14,13 +14,13 @@ var (
 )
 
 func main() {
-	cmd, cfg, err := config.NewConfig(os.Args)
+	_, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
 
-	app, err := internal.NewApp(cfg)
+	_, err = internal.NewApp(cfg)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)

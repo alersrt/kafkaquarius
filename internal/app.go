@@ -14,10 +14,8 @@ type App struct {
 	filter   *filter.Filter
 }
 
-func NewApp(cfg *config.Config) (app *App, err error) {
-	app = &App{}
-
-	app.consumer, err = kafka.NewConsumer(&kafka.ConfigMap{
+func NewApp(cfg *config.Config) (*App, error) {
+	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": cfg.SourceBroker,
 		"group.id":          cfg.ConsumerGroup,
 		"auto.offset.reset": "earliest",
@@ -26,8 +24,9 @@ func NewApp(cfg *config.Config) (app *App, err error) {
 		return nil, fmt.Errorf("app: new: %v", err)
 	}
 
+	var prod *kafka.Producer
 	if cfg.TargetBroker != "" {
-		app.producer, err = kafka.NewProducer(&kafka.ConfigMap{
+		prod, err = kafka.NewProducer(&kafka.ConfigMap{
 			"bootstrap.servers": cfg.TargetBroker,
 			"group.id":          cfg.ConsumerGroup,
 		})
@@ -40,10 +39,14 @@ func NewApp(cfg *config.Config) (app *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: new: %v", err)
 	}
-	app.filter, err = filter.NewFilter(string(filtCont))
+	filt, err := filter.NewFilter(string(filtCont))
 	if err != nil {
 		return nil, fmt.Errorf("app: new: %v", err)
 	}
 
-	return
+	return &App{
+		consumer: cons,
+		producer: prod,
+		filter:   filt,
+	}, nil
 }
