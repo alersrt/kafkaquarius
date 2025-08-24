@@ -3,7 +3,7 @@ package filter
 import (
 	"fmt"
 	"github.com/google/cel-go/cel"
-	"kafkaquarius/internal/mapper"
+	"kafkaquarius/internal/domain"
 )
 
 type Filter struct {
@@ -12,10 +12,10 @@ type Filter struct {
 
 func NewFilter(filter string) (*Filter, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(mapper.VarKey, cel.AnyType),
-		cel.Variable(mapper.VarValue, cel.AnyType),
-		cel.Variable(mapper.VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable(mapper.VarTimestamp, cel.TimestampType),
+		cel.Variable(domain.VarKey, cel.AnyType),
+		cel.Variable(domain.VarValue, cel.AnyType),
+		cel.Variable(domain.VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
+		cel.Variable(domain.VarTimestamp, cel.TimestampType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)

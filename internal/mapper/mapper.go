@@ -4,13 +4,7 @@ import (
 	"encoding/json"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"google.golang.org/protobuf/types/known/timestamppb"
-)
-
-var (
-	VarKey       = "Key"
-	VarValue     = "Value"
-	VarTimestamp = "Timestamp"
-	VarHeaders   = "Headers"
+	"kafkaquarius/internal/domain"
 )
 
 func Des(value []byte) any {
@@ -30,9 +24,9 @@ func FromKafka(msg *kafka.Message) map[string]any {
 	}
 
 	return map[string]any{
-		VarKey:       Des(msg.Key),
-		VarValue:     Des(msg.Value),
-		VarHeaders:   headers,
-		VarTimestamp: timestamppb.New(msg.Timestamp),
+		domain.VarKey:       Des(msg.Key),
+		domain.VarValue:     Des(msg.Value),
+		domain.VarHeaders:   headers,
+		domain.VarTimestamp: timestamppb.New(msg.Timestamp),
 	}
 }
