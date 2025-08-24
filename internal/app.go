@@ -8,43 +8,42 @@ import (
 	"os"
 )
 
-type App interface {
-	Do() error
-}
-
-type MigrateApp struct {
+type App struct {
 	consumer *kafka.Consumer
 	producer *kafka.Producer
 	filter   *filter.Filter
 }
 
-func NewApp(cfg *config.Config) (*MigrateApp, error) {
-	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"": cfg.SourceBroker,
+func NewApp(cfg *config.Config) (app *App, err error) {
+	app = &App{}
+
+	app.consumer, err = kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers": cfg.SourceBroker,
+		"group.id":          cfg.ConsumerGroup,
+		"auto.offset.reset": "earliest",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("app: new: %v", err)
 	}
 
-	prod, err := kafka.NewProducer(&kafka.ConfigMap{
-		"": cfg.SourceBroker,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("app: new: %v", err)
+	if cfg.TargetBroker != "" {
+		app.producer, err = kafka.NewProducer(&kafka.ConfigMap{
+			"bootstrap.servers": cfg.TargetBroker,
+			"group.id":          cfg.ConsumerGroup,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("app: new: %v", err)
+		}
 	}
 
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
 		return nil, fmt.Errorf("app: new: %v", err)
 	}
-	filt, err := filter.NewFilter(string(filtCont))
+	app.filter, err = filter.NewFilter(string(filtCont))
 	if err != nil {
 		return nil, fmt.Errorf("app: new: %v", err)
 	}
 
-	return &MigrateApp{
-		consumer: cons,
-		producer: prod,
-		filter:   filt,
-	}, nil
+	return
 }

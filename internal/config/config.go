@@ -28,7 +28,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	switch args[0] {
 	case CmdMigrate:
 		migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
-		migrateSet.StringVar(&cfg.FilterFile, "filter-file", "", "")
+		migrateSet.StringVar(&cfg.FilterFile, "filter-file", "filter.txt", "")
 		migrateSet.StringVar(&cfg.SourceBroker, "source-broker", "", "")
 		migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "")
 		migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "")
@@ -40,8 +40,8 @@ func NewConfig(args []string) (string, *Config, error) {
 		return CmdMigrate, cfg, nil
 	case CmdSearch:
 		searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
-		searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "")
-		searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
+		searchSet.StringVar(&cfg.FilterFile, "filter-file", "filter.txt", "")
+		searchSet.StringVar(&cfg.OutputFile, "output-file", "output.txt", "")
 		searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "")
 		searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "")
 		searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "")
@@ -50,13 +50,13 @@ func NewConfig(args []string) (string, *Config, error) {
 		}
 		return CmdSearch, cfg, nil
 	case CmdStats:
-		searchSet := flag.NewFlagSet(CmdStats, flag.ExitOnError)
-		searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "")
-		searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
-		searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "")
-		searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "")
-		searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "")
-		if err := searchSet.Parse(args[2:]); err != nil {
+		statsSet := flag.NewFlagSet(CmdStats, flag.ExitOnError)
+		statsSet.StringVar(&cfg.FilterFile, "filter-file", "filter.txt", "")
+		statsSet.StringVar(&cfg.OutputFile, "output-file", "output.txt", "")
+		statsSet.StringVar(&cfg.SourceBroker, "source-broker", "", "")
+		statsSet.StringVar(&cfg.SourceTopic, "source-topic", "", "")
+		statsSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "")
+		if err := statsSet.Parse(args[2:]); err != nil {
 			return CmdStats, nil, err
 		}
 		return CmdStats, cfg, nil
