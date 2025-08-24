@@ -16,7 +16,7 @@ Value.some == 0
 `
 	testedUnit, err := NewFilter(filterContent)
 	if err != nil {
-		t.Fatalf("test: filter: new: %+v", err)
+		t.Fatalf("%+v", err)
 	}
 
 	data, err := FromKafka(&kafka.Message{
