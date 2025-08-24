@@ -3,15 +3,12 @@ package internal
 import (
 	"fmt"
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/ext"
-	"reflect"
-	"time"
 )
 
 var (
 	VarKey       = "Key"
 	VarValue     = "Value"
-	VarTimestamp = "Timestamp"
+	VarTimestamp = "Ts"
 	VarHeaders   = "Headers"
 )
 
@@ -20,12 +17,13 @@ type Filter struct {
 }
 
 func NewFilter(filter string) (*Filter, error) {
+	//timeType := cel.ObjectType("time.Time", traits.AdderType, traits.ComparerType, traits.ReceiverType, traits.SubtractorType)
+
 	env, err := cel.NewEnv(
 		cel.Variable(VarKey, cel.StringType),
 		cel.Variable(VarValue, cel.AnyType),
-		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.StringType)),
-		cel.Variable(VarTimestamp, cel.ObjectType("time.Time")),
-		ext.NativeTypes(reflect.TypeFor[time.Time]()),
+		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
+		cel.Variable(VarTimestamp, cel.TimestampType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)
@@ -44,7 +42,7 @@ func NewFilter(filter string) (*Filter, error) {
 	return &Filter{prog: prog}, nil
 }
 
-func (f *Filter) Eval(data map[string]any) (bool, error) {
+func (f *Filter) Eval(data any) (bool, error) {
 	eval, _, err := f.prog.Eval(data)
 	if err != nil {
 		return false, fmt.Errorf("filter: eval: %v", err)

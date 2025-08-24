@@ -11,7 +11,7 @@ func TestFilter(t *testing.T) {
 Value.some == 0
 && Headers.key1 == 'value'
 && Headers.size() != 0
-&& Timestamp < timestamp('2026-01-01')
+//&& Ts < timestamp('2026-01-01T00:00:00.000')
 `
 	testedUnit, err := NewFilter(filterContent)
 	if err != nil {
@@ -30,9 +30,9 @@ Value.some == 0
 
 	ok, err := testedUnit.Eval(data)
 	if err != nil {
-		t.Errorf("test: filter: eval: %+v", err)
+		t.Errorf("%+v", err)
 	}
 	if !ok {
-		t.Errorf("test: filter: expected true")
+		t.Errorf("expected true")
 	}
 }
