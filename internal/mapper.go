@@ -23,7 +23,7 @@ func Des(value []byte) any {
 	}
 }
 
-func FromKafka(msg *kafka.Message) (map[string]any, error) {
+func FromKafka(msg *kafka.Message) map[string]any {
 	headers := make(map[string]any, len(msg.Headers))
 	for _, hdr := range msg.Headers {
 		headers[hdr.Key] = Des(hdr.Value)
@@ -34,5 +34,5 @@ func FromKafka(msg *kafka.Message) (map[string]any, error) {
 		VarValue:     Des(msg.Value),
 		VarHeaders:   headers,
 		VarTimestamp: timestamppb.New(msg.Timestamp),
-	}, nil
+	}
 }

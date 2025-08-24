@@ -19,7 +19,7 @@ Value.some == 0
 		t.Fatalf("%+v", err)
 	}
 
-	data, err := FromKafka(&kafka.Message{
+	data := FromKafka(&kafka.Message{
 		Key:   []byte("{\"kf\":\"test_key\"}"),
 		Value: []byte("{\"some\":0}"),
 		Headers: []kafka.Header{{
