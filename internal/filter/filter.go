@@ -2,8 +2,17 @@ package filter
 
 import (
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
-	"kafkaquarius/internal/domain"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"kafkaquarius/internal/mapper"
+)
+
+const (
+	VarKey       = "Key"
+	VarValue     = "Value"
+	VarTimestamp = "Timestamp"
+	VarHeaders   = "Headers"
 )
 
 type Filter struct {
@@ -12,10 +21,10 @@ type Filter struct {
 
 func NewFilter(filter string) (*Filter, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(domain.VarKey, cel.AnyType),
-		cel.Variable(domain.VarValue, cel.AnyType),
-		cel.Variable(domain.VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
-		cel.Variable(domain.VarTimestamp, cel.TimestampType),
+		cel.Variable(VarKey, cel.AnyType),
+		cel.Variable(VarValue, cel.AnyType),
+		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
+		cel.Variable(VarTimestamp, cel.TimestampType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)
@@ -34,7 +43,19 @@ func NewFilter(filter string) (*Filter, error) {
 	return &Filter{prog: prog}, nil
 }
 
-func (f *Filter) Eval(data map[string]any) (bool, error) {
+func (f *Filter) Eval(msg *kafka.Message) (bool, error) {
+	headers := make(map[string]any, len(msg.Headers))
+	for _, hdr := range msg.Headers {
+		headers[hdr.Key] = mapper.Des(hdr.Value)
+	}
+
+	data := map[string]any{
+		VarKey:       mapper.Des(msg.Key),
+		VarValue:     mapper.Des(msg.Value),
+		VarHeaders:   headers,
+		VarTimestamp: timestamppb.New(msg.Timestamp),
+	}
+
 	eval, _, err := f.prog.Eval(data)
 	if err != nil {
 		return false, fmt.Errorf("filter: eval: %v", err)

@@ -2,7 +2,6 @@ package filter
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"kafkaquarius/internal/mapper"
 	"testing"
 	"time"
 )
@@ -20,7 +19,7 @@ Value.some == 0
 		t.Fatalf("%+v", err)
 	}
 
-	data := mapper.FromKafka(&kafka.Message{
+	msg := &kafka.Message{
 		Key:   []byte("{\"kf\":\"test_key\"}"),
 		Value: []byte("{\"some\":0}"),
 		Headers: []kafka.Header{{
@@ -28,9 +27,9 @@ Value.some == 0
 			Value: []byte("value"),
 		}},
 		Timestamp: time.Now(),
-	})
+	}
 
-	ok, err := testedUnit.Eval(data)
+	ok, err := testedUnit.Eval(msg)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
