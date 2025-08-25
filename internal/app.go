@@ -54,17 +54,18 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 	startTs := time.Now()
 	filtCnt := 0
 	errCnt := 0
+	defer func() {
+		if err := cons.Close(); err != nil {
+			slog.Error(fmt.Sprintf("migrate: %+v", err))
+		}
+		prod.Close()
+		slog.Info(fmt.Sprintf("migrate: processed: %d", filtCnt))
+		slog.Info(fmt.Sprintf("migrate: errors: %d", errCnt))
+		slog.Info(fmt.Sprintf("migrate: duration: %d ms", time.Now().UnixMilli()-startTs.UnixMilli()))
+	}()
 	for {
 		select {
 		case <-ctx.Done():
-			if err := cons.Close(); err != nil {
-				slog.Error(fmt.Sprintf("migrate: %+v", err))
-			}
-			prod.Close()
-
-			slog.Info(fmt.Sprintf("migrate: processed: %d", filtCnt))
-			slog.Info(fmt.Sprintf("migrate: errors: %d", errCnt))
-			slog.Info(fmt.Sprintf("migrate: duration: %d ms", time.Now().UnixMilli()-startTs.UnixMilli()))
 			return
 		default:
 			msg, err := cons.ReadMessage(time.Minute)
@@ -79,7 +80,6 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 			ok, err := filt.Eval(msg)
 			if err != nil {
 				errCnt++
-				slog.Error(fmt.Sprintf("migrate: %+v", err))
 				continue
 			}
 
@@ -89,7 +89,6 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 				err := prod.Produce(msg, nil)
 				if err != nil {
 					errCnt++
-					slog.Error(fmt.Sprintf("migrate: %+v", err))
 					continue
 				}
 			}
