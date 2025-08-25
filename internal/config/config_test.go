@@ -8,9 +8,18 @@ func Test(t *testing.T) {
 		input  []string
 		expCmd string
 	}{
-		{CmdMigrate, []string{"app", CmdMigrate, "--filter-file=/path/to/file"}, CmdMigrate},
-		{CmdSearch, []string{"app", CmdSearch, "--filter-file=/path/to/file"}, CmdSearch},
-		{CmdStats, []string{"app", CmdStats, "--filter-file=/path/to/file"}, CmdStats},
+		{CmdMigrate, []string{"app", CmdMigrate,
+			"--filter-file=/path/to/file",
+			"--source-broker=localhost:9092", "--source-topic=test-topic", "--consumer-group=kafkaquarius",
+		}, CmdMigrate},
+		{CmdSearch, []string{"app", CmdSearch,
+			"--filter-file=/path/to/file",
+			"--source-broker=localhost:9092", "--source-topic=test-topic", "--consumer-group=kafkaquarius",
+		}, CmdSearch},
+		{CmdStats, []string{"app", CmdStats,
+			"--filter-file=/path/to/file",
+			"--source-broker=localhost:9092", "--source-topic=test-topic", "--consumer-group=kafkaquarius",
+		}, CmdStats},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
