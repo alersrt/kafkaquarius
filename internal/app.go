@@ -14,9 +14,10 @@ import (
 
 func Migrate(ctx context.Context, cfg *config.Config) {
 	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": cfg.SourceBroker,
-		"group.id":          cfg.ConsumerGroup,
-		"auto.offset.reset": "earliest",
+		"bootstrap.servers":  cfg.SourceBroker,
+		"group.id":           cfg.ConsumerGroup,
+		"auto.offset.reset":  kafka.OffsetBeginning.String(),
+		"enable.auto.commit": false,
 	})
 	if err != nil {
 		slog.Error(fmt.Sprintf("migrate: %v", err))
@@ -66,7 +67,7 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 		slog.Info(fmt.Sprintf("migrate: found: %d", foundCnt))
 		slog.Info(fmt.Sprintf("migrate: sent: %d", sentCnt))
 		slog.Info(fmt.Sprintf("migrate: errors: %d", errCnt))
-		slog.Info(fmt.Sprintf("migrate: duration: %d ms", time.Now().UnixMilli()-startTs.UnixMilli()))
+		slog.Info(fmt.Sprintf("migrate: duration: %s", time.Now().Sub(startTs).String()))
 	}()
 	for {
 		select {
@@ -104,9 +105,10 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 
 func Search(ctx context.Context, cfg *config.Config) {
 	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": cfg.SourceBroker,
-		"group.id":          cfg.ConsumerGroup,
-		"auto.offset.reset": "earliest",
+		"bootstrap.servers":  cfg.SourceBroker,
+		"group.id":           cfg.ConsumerGroup,
+		"auto.offset.reset":  kafka.OffsetBeginning.String(),
+		"enable.auto.commit": false,
 	})
 	if err != nil {
 		slog.Error(fmt.Sprintf("search: %v", err))
@@ -142,7 +144,7 @@ func Search(ctx context.Context, cfg *config.Config) {
 			slog.Error(fmt.Sprintf("search: %v", err))
 			return
 		}
-		off, _ := file.WriteAt([]byte("["), 0)
+		off, _ := file.Write([]byte("[\n"))
 		fileOffset += int64(off)
 	}
 
@@ -151,7 +153,8 @@ func Search(ctx context.Context, cfg *config.Config) {
 			slog.Error(fmt.Sprintf("search: %+v", err))
 		}
 		if file != nil {
-			_, _ = file.WriteAt([]byte("]"), fileOffset)
+			// -2 isn't magic number, it's shift from the last two symbols ",\n"
+			_, _ = file.WriteAt([]byte("\n]\n"), fileOffset-2)
 			if err := file.Close(); err != nil {
 				slog.Error(fmt.Sprintf("search: %+v", err))
 			}
@@ -159,7 +162,7 @@ func Search(ctx context.Context, cfg *config.Config) {
 		slog.Info(fmt.Sprintf("search: total: %d", totalCnt))
 		slog.Info(fmt.Sprintf("search: found: %d", foundCnt))
 		slog.Info(fmt.Sprintf("search: errors: %d", errCnt))
-		slog.Info(fmt.Sprintf("search: duration: %d ms", time.Now().UnixMilli()-startTs.UnixMilli()))
+		slog.Info(fmt.Sprintf("search: duration: %s", time.Now().Sub(startTs).String()))
 	}()
 
 	for {
@@ -191,12 +194,11 @@ func Search(ctx context.Context, cfg *config.Config) {
 						errCnt++
 						continue
 					}
-					off, _ := file.Write([]byte("\n"))
-					fileOffset += int64(off)
-					fmt.Printf(string(obj))
-					off, _ = file.Write(obj)
+					off, _ := file.Write(obj)
 					fileOffset += int64(off)
 					off, _ = file.Write([]byte(","))
+					fileOffset += int64(off)
+					off, _ = file.Write([]byte("\n"))
 					fileOffset += int64(off)
 				}
 			}
