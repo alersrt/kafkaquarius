@@ -9,7 +9,6 @@ import (
 const (
 	CmdMigrate = "migrate"
 	CmdSearch  = "search"
-	CmdStats   = "stats"
 )
 
 type Config struct {
@@ -92,35 +91,6 @@ func NewConfig(args []string) (string, *Config, error) {
 		}
 
 		return CmdSearch, cfg, nil
-	case CmdStats:
-		statsSet := flag.NewFlagSet(CmdStats, flag.ExitOnError)
-		statsSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
-		statsSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
-		statsSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
-		statsSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
-		statsSet.StringVar(&cfg.OutputFile, "output-file", "", "")
-		if err := statsSet.Parse(args[2:]); err != nil {
-			return CmdStats, nil, err
-		}
-
-		var valErrs error
-		if cfg.FilterFile == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --filter-file"))
-		}
-		if cfg.ConsumerGroup == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --consumer-group"))
-		}
-		if cfg.SourceBroker == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --source-broker"))
-		}
-		if cfg.SourceTopic == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --source-topic"))
-		}
-		if valErrs != nil {
-			return CmdStats, nil, valErrs
-		}
-
-		return CmdStats, cfg, nil
 	default:
 		return "", nil, fmt.Errorf("wrong cmd")
 	}

@@ -14,6 +14,8 @@ var (
 )
 
 func main() {
+	var err error
+
 	cmd, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
@@ -24,12 +26,15 @@ func main() {
 	switch cmd {
 	case config.CmdMigrate:
 		app, err = internal.NewMigrateApp(cfg)
-		if err != nil {
-			slog.Error(fmt.Sprintf("%+v", err))
-			os.Exit(ExitCodeErr)
-		}
+	case config.CmdSearch:
+		app, err = internal.NewSearchApp(cfg)
 	default:
-		slog.Error("unimplemented")
+		slog.Error(fmt.Sprintf("unimplemented"))
+		os.Exit(ExitCodeErr)
+	}
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
 

@@ -16,10 +16,6 @@ func Test(t *testing.T) {
 			"--filter-file=/path/to/file",
 			"--source-broker=localhost:9092", "--source-topic=test-topic", "--consumer-group=kafkaquarius",
 		}, CmdSearch},
-		{CmdStats, []string{"app", CmdStats,
-			"--filter-file=/path/to/file",
-			"--source-broker=localhost:9092", "--source-topic=test-topic", "--consumer-group=kafkaquarius",
-		}, CmdStats},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -18,14 +18,14 @@ type MigrateApp struct {
 	filter *filter.Filter
 }
 
-func NewMigrateApp(cfg *config.Config) (App, error) {
+func NewMigrateApp(cfg *config.Config) (*MigrateApp, error) {
 	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": cfg.SourceBroker,
 		"group.id":          cfg.ConsumerGroup,
 		"auto.offset.reset": "earliest",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("app: new: %v", err)
+		return nil, fmt.Errorf("migrate: new: %v", err)
 	}
 
 	var prod *kafka.Producer
@@ -35,17 +35,17 @@ func NewMigrateApp(cfg *config.Config) (App, error) {
 			"group.id":          cfg.ConsumerGroup,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("app: new: %v", err)
+			return nil, fmt.Errorf("migrate: new: %v", err)
 		}
 	}
 
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
-		return nil, fmt.Errorf("app: new: %v", err)
+		return nil, fmt.Errorf("migrate: new: %v", err)
 	}
 	filt, err := filter.NewFilter(string(filtCont))
 	if err != nil {
-		return nil, fmt.Errorf("app: new: %v", err)
+		return nil, fmt.Errorf("migrate: new: %v", err)
 	}
 
 	return &MigrateApp{
@@ -56,5 +56,41 @@ func NewMigrateApp(cfg *config.Config) (App, error) {
 }
 
 func (a *MigrateApp) Execute() error {
+	return nil
+}
+
+type SearchApp struct {
+	cons    *kafka.Consumer
+	filter  *filter.Filter
+	outFile string
+}
+
+func NewSearchApp(cfg *config.Config) (*SearchApp, error) {
+	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers": cfg.SourceBroker,
+		"group.id":          cfg.ConsumerGroup,
+		"auto.offset.reset": "earliest",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("migrate: new: %v", err)
+	}
+
+	filtCont, err := os.ReadFile(cfg.FilterFile)
+	if err != nil {
+		return nil, fmt.Errorf("migrate: new: %v", err)
+	}
+	filt, err := filter.NewFilter(string(filtCont))
+	if err != nil {
+		return nil, fmt.Errorf("migrate: new: %v", err)
+	}
+
+	return &SearchApp{
+		cons:    cons,
+		filter:  filt,
+		outFile: cfg.OutputFile,
+	}, nil
+}
+
+func (s *SearchApp) Execute() error {
 	return nil
 }
