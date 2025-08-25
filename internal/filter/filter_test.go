@@ -7,8 +7,7 @@ import (
 )
 
 func TestFilter(t *testing.T) {
-	filterContent := `
-Value.some == 0
+	filterContent := `Value.some == 0
 && Headers.key1 == 'value'
 && Headers.size() != 0
 && Key.kf == 'test_key'
@@ -28,7 +27,6 @@ Value.some == 0
 		}},
 		Timestamp: time.Now(),
 	}
-
 	ok, err := testedUnit.Eval(msg)
 	if err != nil {
 		t.Errorf("%+v", err)
