@@ -16,7 +16,7 @@ func main() {
 	cmd, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
-		os.Exit(daemon.ExitCodeError)
+		os.Exit(daemon.ExitCodeInvalidUsage)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

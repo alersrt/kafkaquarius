@@ -24,6 +24,11 @@ type Config struct {
 // NewConfig parses flags and returns list of parsed values in the Config struct.
 func NewConfig(args []string) (string, *Config, error) {
 	cfg := new(Config)
+
+	if len(args) < 2 {
+		return "", nil, fmt.Errorf("cfg: no cmd")
+	}
+
 	switch args[1] {
 	case CmdMigrate:
 		migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
