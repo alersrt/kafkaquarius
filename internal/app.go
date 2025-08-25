@@ -52,8 +52,8 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 	}
 
 	startTs := time.Now()
-	counter := 0
-	var errs []error
+	filtCnt := 0
+	errCnt := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -62,31 +62,33 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 			}
 			prod.Close()
 
-			slog.Info(fmt.Sprintf("migrate: processed: %d", counter))
-			slog.Info(fmt.Sprintf("migrate: errors: %d", len(errs)))
+			slog.Info(fmt.Sprintf("migrate: processed: %d", filtCnt))
+			slog.Info(fmt.Sprintf("migrate: errors: %d", errCnt))
 			slog.Info(fmt.Sprintf("migrate: duration: %d ms", time.Now().UnixMilli()-startTs.UnixMilli()))
 			return
 		default:
-			msg, err := cons.ReadMessage(time.Second)
+			msg, err := cons.ReadMessage(time.Minute)
 			if err != nil {
-				errs = append(errs, err)
-				slog.Error(fmt.Sprintf("migrate: %+v", err))
+				if err != nil && err.(kafka.Error).IsTimeout() {
+					return
+				}
+				errCnt++
 				continue
 			}
 
 			ok, err := filt.Eval(msg)
 			if err != nil {
-				errs = append(errs, err)
+				errCnt++
 				slog.Error(fmt.Sprintf("migrate: %+v", err))
 				continue
 			}
 
 			if ok {
-				counter++
+				filtCnt++
 				msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
 				err := prod.Produce(msg, nil)
 				if err != nil {
-					errs = append(errs, err)
+					errCnt++
 					slog.Error(fmt.Sprintf("migrate: %+v", err))
 					continue
 				}
