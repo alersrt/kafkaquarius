@@ -14,13 +14,26 @@ var (
 )
 
 func main() {
-	_, cfg, err := config.NewConfig(os.Args)
+	cmd, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)
 	}
 
-	_, err = internal.NewApp(cfg)
+	var app internal.App
+	switch cmd {
+	case config.CmdMigrate:
+		app, err = internal.NewMigrateApp(cfg)
+		if err != nil {
+			slog.Error(fmt.Sprintf("%+v", err))
+			os.Exit(ExitCodeErr)
+		}
+	default:
+		slog.Error("unimplemented")
+		os.Exit(ExitCodeErr)
+	}
+
+	err = app.Execute()
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(ExitCodeErr)

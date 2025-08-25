@@ -8,13 +8,17 @@ import (
 	"os"
 )
 
-type App struct {
-	consumer *kafka.Consumer
-	producer *kafka.Producer
-	filter   *filter.Filter
+type App interface {
+	Execute() error
 }
 
-func NewApp(cfg *config.Config) (*App, error) {
+type MigrateApp struct {
+	cons   *kafka.Consumer
+	prod   *kafka.Producer
+	filter *filter.Filter
+}
+
+func NewMigrateApp(cfg *config.Config) (App, error) {
 	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": cfg.SourceBroker,
 		"group.id":          cfg.ConsumerGroup,
@@ -44,9 +48,13 @@ func NewApp(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("app: new: %v", err)
 	}
 
-	return &App{
-		consumer: cons,
-		producer: prod,
-		filter:   filt,
+	return &MigrateApp{
+		cons:   cons,
+		prod:   prod,
+		filter: filt,
 	}, nil
+}
+
+func (a *MigrateApp) Execute() error {
+	return nil
 }

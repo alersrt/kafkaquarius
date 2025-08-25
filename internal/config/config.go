@@ -13,7 +13,6 @@ const (
 )
 
 type Config struct {
-	Cmd           string `json:"cmd"`
 	FilterFile    string `json:"filter_file,omitempty"`
 	OutputFile    string `json:"output_file,omitempty"`
 	SourceBroker  string `json:"source_broker,omitempty"`
@@ -26,8 +25,7 @@ type Config struct {
 // NewConfig parses flags and returns list of parsed values in the Config struct.
 func NewConfig(args []string) (string, *Config, error) {
 	cfg := new(Config)
-	cfg.Cmd = args[1]
-	switch cfg.Cmd {
+	switch args[1] {
 	case CmdMigrate:
 		migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
 		migrateSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
