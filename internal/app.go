@@ -52,23 +52,29 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 	}
 
 	counter := 0
+	var errs []error
 	for {
 		select {
 		case <-ctx.Done():
 			if err := cons.Close(); err != nil {
+				errs = append(errs, err)
 				slog.Error(fmt.Sprintf("migrate: %+v", err))
 			}
 			prod.Close()
+
+			slog.Info(fmt.Sprintf("processed: %d", counter))
 			return
 		default:
 			msg, err := cons.ReadMessage(time.Second)
 			counter++
 			if err != nil {
+				errs = append(errs, err)
 				slog.Error(fmt.Sprintf("migrate: %+v", err))
 				continue
 			}
 			ok, err := filt.Eval(msg)
 			if err != nil {
+				errs = append(errs, err)
 				slog.Error(fmt.Sprintf("migrate: %+v", err))
 				continue
 			}
@@ -77,6 +83,7 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 			if ok {
 				err := prod.Produce(msg, make(chan kafka.Event))
 				if err != nil {
+					errs = append(errs, err)
 					slog.Error(fmt.Sprintf("migrate: %+v", err))
 					continue
 				}
@@ -84,6 +91,7 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 
 			if counter%100 == 0 {
 				if _, err := cons.Commit(); err != nil {
+					errs = append(errs, err)
 					slog.Error(fmt.Sprintf("migrate: %+v", err))
 					continue
 				}
@@ -93,6 +101,6 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 	}
 }
 
-func Search(ctx context.Context, cfg *config.Config) error {
-	return nil
+func Search(ctx context.Context, cfg *config.Config) {
+	return
 }
