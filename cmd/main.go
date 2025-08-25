@@ -25,9 +25,7 @@ func main() {
 	case config.CmdMigrate:
 		go internal.Migrate(ctx, cfg)
 	case config.CmdSearch:
-		go internal.Search(cfg)
-	default:
-		err = fmt.Errorf("unimplemented")
+		go internal.Search(ctx, cfg)
 	}
 
 	if code, err := daemon.HandleSignals(ctx, cancel); err != nil {

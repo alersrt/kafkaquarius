@@ -51,14 +51,18 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 		return
 	}
 
+	counter := 0
 	for {
 		select {
 		case <-ctx.Done():
-			cons.Close()
+			if err := cons.Close(); err != nil {
+				slog.Error(fmt.Sprintf("migrate: %+v", err))
+			}
 			prod.Close()
 			return
 		default:
 			msg, err := cons.ReadMessage(time.Second)
+			counter++
 			if err != nil {
 				slog.Error(fmt.Sprintf("migrate: %+v", err))
 				continue
@@ -69,15 +73,26 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 				continue
 			}
 
+			msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
 			if ok {
-				prod.Produce(msg, make(chan kafka.Event))
+				err := prod.Produce(msg, make(chan kafka.Event))
+				if err != nil {
+					slog.Error(fmt.Sprintf("migrate: %+v", err))
+					continue
+				}
 			}
 
-			cons.Commit()
+			if counter%100 == 0 {
+				if _, err := cons.Commit(); err != nil {
+					slog.Error(fmt.Sprintf("migrate: %+v", err))
+					continue
+				}
+			}
+
 		}
 	}
 }
 
-func Search(cfg *config.Config) error {
+func Search(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
