@@ -25,15 +25,15 @@ type Config struct {
 func NewConfig(args []string) (string, *Config, error) {
 	cfg := new(Config)
 
-	switch args[0] {
+	switch args[1] {
 	case CmdMigrate:
 		migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
 		migrateSet.StringVar(&cfg.FilterFile, "filter-file", "filter.txt", "")
+		migrateSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "kafkaquarius", "")
 		migrateSet.StringVar(&cfg.SourceBroker, "source-broker", "", "")
 		migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "")
 		migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "")
 		migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "")
-		migrateSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "")
 		if err := migrateSet.Parse(args[2:]); err != nil {
 			return CmdMigrate, nil, err
 		}
@@ -42,9 +42,9 @@ func NewConfig(args []string) (string, *Config, error) {
 		searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
 		searchSet.StringVar(&cfg.FilterFile, "filter-file", "filter.txt", "")
 		searchSet.StringVar(&cfg.OutputFile, "output-file", "output.txt", "")
+		searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "kafkaquarius", "")
 		searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "")
 		searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "")
-		searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "")
 		if err := searchSet.Parse(args[2:]); err != nil {
 			return CmdSearch, nil, err
 		}
@@ -53,9 +53,9 @@ func NewConfig(args []string) (string, *Config, error) {
 		statsSet := flag.NewFlagSet(CmdStats, flag.ExitOnError)
 		statsSet.StringVar(&cfg.FilterFile, "filter-file", "filter.txt", "")
 		statsSet.StringVar(&cfg.OutputFile, "output-file", "output.txt", "")
+		statsSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "kafkaquarius", "")
 		statsSet.StringVar(&cfg.SourceBroker, "source-broker", "", "")
 		statsSet.StringVar(&cfg.SourceTopic, "source-topic", "", "")
-		statsSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "")
 		if err := statsSet.Parse(args[2:]); err != nil {
 			return CmdStats, nil, err
 		}
