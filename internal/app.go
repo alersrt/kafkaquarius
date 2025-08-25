@@ -1,31 +1,25 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/filter"
+	"log/slog"
 	"os"
+	"time"
 )
 
-type App interface {
-	Execute() error
-}
-
-type MigrateApp struct {
-	cons   *kafka.Consumer
-	prod   *kafka.Producer
-	filter *filter.Filter
-}
-
-func NewMigrateApp(cfg *config.Config) (*MigrateApp, error) {
+func Migrate(ctx context.Context, cfg *config.Config) {
 	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": cfg.SourceBroker,
 		"group.id":          cfg.ConsumerGroup,
 		"auto.offset.reset": "earliest",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("migrate: new: %v", err)
+		slog.Error(fmt.Sprintf("migrate: %v", err))
+		return
 	}
 
 	var prod *kafka.Producer
@@ -35,62 +29,55 @@ func NewMigrateApp(cfg *config.Config) (*MigrateApp, error) {
 			"group.id":          cfg.ConsumerGroup,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("migrate: new: %v", err)
+			slog.Error(fmt.Sprintf("migrate: %v", err))
+			return
 		}
 	}
 
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
-		return nil, fmt.Errorf("migrate: new: %v", err)
+		slog.Error(fmt.Sprintf("migrate: %v", err))
+		return
 	}
 	filt, err := filter.NewFilter(string(filtCont))
 	if err != nil {
-		return nil, fmt.Errorf("migrate: new: %v", err)
+		slog.Error(fmt.Sprintf("migrate: %v", err))
+		return
 	}
 
-	return &MigrateApp{
-		cons:   cons,
-		prod:   prod,
-		filter: filt,
-	}, nil
-}
-
-func (a *MigrateApp) Execute() error {
-	return nil
-}
-
-type SearchApp struct {
-	cons    *kafka.Consumer
-	filter  *filter.Filter
-	outFile string
-}
-
-func NewSearchApp(cfg *config.Config) (*SearchApp, error) {
-	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": cfg.SourceBroker,
-		"group.id":          cfg.ConsumerGroup,
-		"auto.offset.reset": "earliest",
-	})
+	err = cons.Subscribe(cfg.SourceTopic, nil)
 	if err != nil {
-		return nil, fmt.Errorf("migrate: new: %v", err)
+		slog.Error(fmt.Sprintf("migrate: %v", err))
+		return
 	}
 
-	filtCont, err := os.ReadFile(cfg.FilterFile)
-	if err != nil {
-		return nil, fmt.Errorf("migrate: new: %v", err)
-	}
-	filt, err := filter.NewFilter(string(filtCont))
-	if err != nil {
-		return nil, fmt.Errorf("migrate: new: %v", err)
-	}
+	for {
+		select {
+		case <-ctx.Done():
+			cons.Close()
+			prod.Close()
+			return
+		default:
+			msg, err := cons.ReadMessage(time.Second)
+			if err != nil {
+				slog.Error(fmt.Sprintf("migrate: %+v", err))
+				continue
+			}
+			ok, err := filt.Eval(msg)
+			if err != nil {
+				slog.Error(fmt.Sprintf("migrate: %+v", err))
+				continue
+			}
 
-	return &SearchApp{
-		cons:    cons,
-		filter:  filt,
-		outFile: cfg.OutputFile,
-	}, nil
+			if ok {
+				prod.Produce(msg, make(chan kafka.Event))
+			}
+
+			cons.Commit()
+		}
+	}
 }
 
-func (s *SearchApp) Execute() error {
+func Search(cfg *config.Config) error {
 	return nil
 }

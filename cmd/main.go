@@ -1,16 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"kafkaquarius/internal"
 	"kafkaquarius/internal/config"
+	"kafkaquarius/pkg/daemon"
 	"log/slog"
 	"os"
-)
-
-var (
-	ExitCodeDone = 0
-	ExitCodeErr  = 0
 )
 
 func main() {
@@ -19,30 +16,24 @@ func main() {
 	cmd, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
-		os.Exit(ExitCodeErr)
+		os.Exit(daemon.ExitCodeError)
 	}
 
-	var app internal.App
+	ctx, cancel := context.WithCancel(context.Background())
+
 	switch cmd {
 	case config.CmdMigrate:
-		app, err = internal.NewMigrateApp(cfg)
+		go internal.Migrate(ctx, cfg)
 	case config.CmdSearch:
-		app, err = internal.NewSearchApp(cfg)
+		go internal.Search(cfg)
 	default:
-		slog.Error(fmt.Sprintf("unimplemented"))
-		os.Exit(ExitCodeErr)
+		err = fmt.Errorf("unimplemented")
 	}
 
-	if err != nil {
+	if code, err := daemon.HandleSignals(ctx, cancel); err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
-		os.Exit(ExitCodeErr)
+		os.Exit(code)
 	}
 
-	err = app.Execute()
-	if err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
-		os.Exit(ExitCodeErr)
-	}
-
-	os.Exit(ExitCodeDone)
+	os.Exit(daemon.ExitCodeDone)
 }

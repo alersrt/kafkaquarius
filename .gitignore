@@ -5,6 +5,7 @@
 !/cmd/
 !/internal/
 !/examples/
+!/pkg/
 
 # Backend
 /vendor
