@@ -7,8 +7,6 @@ kafkaquarius-current-linux search \
   --consumer-group=kafkaquarius \
   --source-broker=localhost:9092 \
   --source-topic=sample-topic \
-  --target-broker=localhost:9092 \
-  --target-topic=sample-topic-dest \
   --filter-file=examples/filter.txt \
   --output-file=examples/test.txt
 ```
@@ -18,8 +16,9 @@ kafkaquarius-current-linux migrate \
   --consumer-group=kafkaquarius \
   --source-broker=localhost:9092 \
   --source-topic=sample-topic \
-  --filter-file=examples/filter.txt \
-  --output-file=examples/test.txt
+  --target-broker=localhost:9092 \
+  --target-topic=sample-topic-dest \
+  --filter-file=examples/filter.txt
 ```
 
 Filter example: [filter.txt](examples/filter.txt)
