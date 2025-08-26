@@ -82,6 +82,9 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 				errCnt++
 				continue
 			}
+			if startTs.Before(msg.Timestamp) {
+				return
+			}
 
 			ok, err := filt.Eval(msg)
 			if err != nil {
@@ -135,8 +138,9 @@ func Search(ctx context.Context, cfg *config.Config) {
 	startTs := time.Now()
 	totalCnt := 0
 	foundCnt := 0
+	writtenCnt := 0
 	errCnt := 0
-	fileOffset := int64(0)
+	var foundMsgs []*kafka.Message
 	var file *os.File
 	if cfg.OutputFile != "" {
 		file, err = os.Create(cfg.OutputFile)
@@ -144,8 +148,6 @@ func Search(ctx context.Context, cfg *config.Config) {
 			slog.Error(fmt.Sprintf("search: %v", err))
 			return
 		}
-		off, _ := file.Write([]byte("[\n"))
-		fileOffset += int64(off)
 	}
 
 	defer func() {
@@ -153,14 +155,15 @@ func Search(ctx context.Context, cfg *config.Config) {
 			slog.Error(fmt.Sprintf("search: %+v", err))
 		}
 		if file != nil {
-			// -2 isn't magic number, it's shift from the last two symbols ",\n"
-			_, _ = file.WriteAt([]byte("\n]\n"), fileOffset-2)
+			bytesMsgs, _ := json.MarshalIndent(foundMsgs, "", "  ")
+			_, _ = file.Write(bytesMsgs)
 			if err := file.Close(); err != nil {
 				slog.Error(fmt.Sprintf("search: %+v", err))
 			}
 		}
 		slog.Info(fmt.Sprintf("search: total: %d", totalCnt))
 		slog.Info(fmt.Sprintf("search: found: %d", foundCnt))
+		slog.Info(fmt.Sprintf("search: written: %d", writtenCnt))
 		slog.Info(fmt.Sprintf("search: errors: %d", errCnt))
 		slog.Info(fmt.Sprintf("search: duration: %s", time.Now().Sub(startTs).String()))
 	}()
@@ -178,6 +181,9 @@ func Search(ctx context.Context, cfg *config.Config) {
 				errCnt++
 				continue
 			}
+			if startTs.Before(msg.Timestamp) {
+				return
+			}
 
 			ok, err := filt.Eval(msg)
 			if err != nil {
@@ -189,17 +195,8 @@ func Search(ctx context.Context, cfg *config.Config) {
 			if ok {
 				foundCnt++
 				if file != nil {
-					obj, err := json.Marshal(msg)
-					if err != nil {
-						errCnt++
-						continue
-					}
-					off, _ := file.Write(obj)
-					fileOffset += int64(off)
-					off, _ = file.Write([]byte(","))
-					fileOffset += int64(off)
-					off, _ = file.Write([]byte("\n"))
-					fileOffset += int64(off)
+					foundMsgs = append(foundMsgs, msg)
+					writtenCnt++
 				}
 			}
 		}

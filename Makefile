@@ -87,10 +87,11 @@ go.build:
 	export CGO_CFLAGS="${CFLAGS}"
 	export CGO_CXXFLAGS="${CXXFLAGS}"
 	export CGO_LDFLAGS="${LDFLAGS}"
-	export GOFLAGS="-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=readonly -modcacherw"
+	export GOFLAGS="-buildmode=pie -trimpath -mod=readonly -modcacherw"
 	#GOARCH=amd64 GOOS=darwin go build -o ${builddir}/${pkgname}-${pkgver}-darwin ${mainpath}
-	GOARCH=amd64 GOOS=linux go build -o ${builddir}/${pkgname}-${pkgver}-linux ${mainpath}
-#	GOARCH=amd64 GOOS=windows go build -o ${builddir}/${pkgname}-${pkgver}-windows ${mainpath}
+	GOARCH=amd64 GOOS=linux go build -ldflags="-linkmode=external -w -s" -o ${builddir}/${pkgname}-${pkgver}-linux ${mainpath}
+	upx --best ${builddir}/${pkgname}-${pkgver}-linux
+	#GOARCH=amd64 GOOS=windows go build -o ${builddir}/${pkgname}-${pkgver}-windows ${mainpath}
 
 go.clean:
 	go clean

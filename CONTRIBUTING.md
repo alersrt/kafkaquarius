@@ -5,6 +5,8 @@ Contribution Guide
 
 - If you don't use docker-wrapped commands, make sure that tools you use have the same version as in docker-wrapped
   commands. It's latest version, mainly.
+- You must have installed Go
+- You must have installed `make` and `upx`
 
 ## Operations
 
