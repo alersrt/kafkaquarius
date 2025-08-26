@@ -29,7 +29,6 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 	if cfg.TargetBroker != "" {
 		prod, err = kafka.NewProducer(&kafka.ConfigMap{
 			"bootstrap.servers": cfg.TargetBroker,
-			"group.id":          cfg.ConsumerGroup,
 		})
 		if err != nil {
 			slog.Error(fmt.Sprintf("migrate: %v", err))
