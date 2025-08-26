@@ -87,6 +87,8 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 				return
 			}
 
+			totalCnt++
+
 			ok, err := filt.Eval(msg)
 			if err != nil {
 				errCnt++
@@ -192,13 +194,14 @@ func Search(ctx context.Context, cfg *config.Config) {
 				return
 			}
 
+			totalCnt++
+
 			ok, err := filt.Eval(msg)
 			if err != nil {
 				errCnt++
 				continue
 			}
 
-			totalCnt++
 			if ok {
 				foundCnt++
 				if file != nil {
