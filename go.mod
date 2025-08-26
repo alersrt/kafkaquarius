@@ -1,8 +1,6 @@
 module kafkaquarius
 
-go 1.24.0
-
-toolchain go1.24.6
+go 1.24.6
 
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.11.1

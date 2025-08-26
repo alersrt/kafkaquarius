@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
+	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
 	"log/slog"
 	"os"
@@ -140,7 +141,7 @@ func Search(ctx context.Context, cfg *config.Config) {
 	foundCnt := 0
 	writtenCnt := 0
 	errCnt := 0
-	var foundMsgs []*kafka.Message
+	var foundMsgs []*domain.Message
 	var file *os.File
 	if cfg.OutputFile != "" {
 		file, err = os.Create(cfg.OutputFile)
@@ -155,8 +156,14 @@ func Search(ctx context.Context, cfg *config.Config) {
 			slog.Error(fmt.Sprintf("search: %+v", err))
 		}
 		if file != nil {
-			bytesMsgs, _ := json.MarshalIndent(foundMsgs, "", "  ")
-			_, _ = file.Write(bytesMsgs)
+			bytesMsgs, err := json.MarshalIndent(foundMsgs, "", "  ")
+			if err != nil {
+				slog.Error(fmt.Sprintf("search: %+v", err))
+			}
+			_, err = file.Write(bytesMsgs)
+			if err != nil {
+				slog.Error(fmt.Sprintf("search: %+v", err))
+			}
 			if err := file.Close(); err != nil {
 				slog.Error(fmt.Sprintf("search: %+v", err))
 			}
@@ -195,7 +202,7 @@ func Search(ctx context.Context, cfg *config.Config) {
 			if ok {
 				foundCnt++
 				if file != nil {
-					foundMsgs = append(foundMsgs, msg)
+					foundMsgs = append(foundMsgs, domain.FromKafka(msg))
 					writtenCnt++
 				}
 			}

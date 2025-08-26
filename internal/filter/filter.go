@@ -5,7 +5,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"kafkaquarius/internal/mapper"
+	"kafkaquarius/internal/domain"
 )
 
 const (
@@ -46,12 +46,12 @@ func NewFilter(filter string) (*Filter, error) {
 func (f *Filter) Eval(msg *kafka.Message) (bool, error) {
 	headers := make(map[string]any, len(msg.Headers))
 	for _, hdr := range msg.Headers {
-		headers[hdr.Key] = mapper.Des(hdr.Value)
+		headers[hdr.Key] = domain.Des(hdr.Value)
 	}
 
 	data := map[string]any{
-		VarKey:       mapper.Des(msg.Key),
-		VarValue:     mapper.Des(msg.Value),
+		VarKey:       domain.Des(msg.Key),
+		VarValue:     domain.Des(msg.Value),
 		VarHeaders:   headers,
 		VarTimestamp: timestamppb.New(msg.Timestamp),
 	}
