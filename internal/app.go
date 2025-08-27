@@ -49,7 +49,9 @@ func Migrate(ctx context.Context, cfg *config.Config) error {
 			if err != nil {
 				return
 			}
-			defer cons.Close()
+			defer func(cons *kafka.Consumer) {
+				_ = cons.Close()
+			}(cons)
 
 			for {
 				msg, err := cons.ReadMessage(time.Minute)
@@ -136,7 +138,9 @@ func Search(ctx context.Context, cfg *config.Config) error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
 	}
 
 	msgChan := make(chan *kafka.Message)
@@ -148,7 +152,9 @@ func Search(ctx context.Context, cfg *config.Config) error {
 			if err != nil {
 				return
 			}
-			defer cons.Close()
+			defer func(cons *kafka.Consumer) {
+				_ = cons.Close()
+			}(cons)
 
 			for {
 				msg, err := cons.ReadMessage(time.Minute)

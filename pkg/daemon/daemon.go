@@ -21,7 +21,7 @@ func HandleSignals(ctx context.Context, cancel func()) (int, error) {
 	signalChan := make(chan os.Signal, 1)
 	defer signal.Stop(signalChan)
 
-	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 	for {
 		select {
 		case s := <-signalChan:
@@ -29,8 +29,6 @@ func HandleSignals(ctx context.Context, cancel func()) (int, error) {
 			case os.Interrupt:
 				cancel()
 				return ExitCodeInterrupt, nil
-			case os.Kill:
-				return ExitCodeKill, nil
 			case syscall.SIGTERM:
 				cancel()
 				return ExitCodeTerminate, nil
