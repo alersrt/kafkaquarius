@@ -29,8 +29,8 @@ func main() {
 			if err != nil {
 				slog.Error(fmt.Sprintf("migrate: %v", err))
 			}
-			slog.Info("migrate: finish")
 			stat.Print()
+			slog.Info("migrate: finish")
 		}()
 	case config.CmdSearch:
 		go func() {
@@ -39,8 +39,8 @@ func main() {
 			if err != nil {
 				slog.Error(fmt.Sprintf("search: %v", err))
 			}
-			slog.Info("search: finish")
 			stat.Print()
+			slog.Info("search: finish")
 		}()
 	}
 
