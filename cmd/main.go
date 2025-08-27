@@ -15,7 +15,7 @@ func main() {
 
 	cmd, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
+		slog.Error(fmt.Sprintf("%v", err))
 		os.Exit(daemon.ExitCodeInvalidUsage)
 	}
 
@@ -24,22 +24,28 @@ func main() {
 	switch cmd {
 	case config.CmdMigrate:
 		go func() {
-			err := internal.Migrate(ctx, cfg)
+			slog.Info("migrate: start")
+			stat, err := internal.Migrate(ctx, cfg)
 			if err != nil {
 				slog.Error(fmt.Sprintf("migrate: %v", err))
 			}
+			slog.Info("migrate: finish")
+			stat.Print()
 		}()
 	case config.CmdSearch:
 		go func() {
-			err := internal.Search(ctx, cfg)
+			slog.Info("search: start")
+			stat, err := internal.Search(ctx, cfg)
 			if err != nil {
 				slog.Error(fmt.Sprintf("search: %v", err))
 			}
+			slog.Info("search: finish")
+			stat.Print()
 		}()
 	}
 
 	if code, err := daemon.HandleSignals(ctx); err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
+		slog.Error(fmt.Sprintf("%v", err))
 		os.Exit(code)
 	}
 
