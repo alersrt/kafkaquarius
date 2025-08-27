@@ -206,7 +206,7 @@ time: %v
 			if ok {
 				foundCnt++
 				if file != nil {
-					//foundMsgs = append(foundMsgs, domain.FromKafka(msg))
+					foundMsgs = append(foundMsgs, domain.FromKafka(msg))
 					writtenCnt++
 				}
 			}
