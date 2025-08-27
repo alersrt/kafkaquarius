@@ -44,7 +44,7 @@ func Migrate(ctx context.Context, cfg *config.Config) error {
 	defer close(foundChan)
 
 	for i := 0; i < cfg.PartitionsNumber; i++ {
-		go func() {
+		go func(ctx context.Context) {
 			cons, err := consCreateAndSubscribe(cfg, i)
 			if err != nil {
 				return
@@ -54,33 +54,38 @@ func Migrate(ctx context.Context, cfg *config.Config) error {
 			}(cons)
 
 			for {
-				msg, err := cons.ReadMessage(time.Minute)
-				if err != nil {
-					if err != nil && err.(kafka.Error).IsTimeout() {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					msg, err := cons.ReadMessage(time.Minute)
+					if err != nil {
+						if err != nil && err.(kafka.Error).IsTimeout() {
+							cancel()
+							return
+						}
+						errCnt++
+						continue
+					}
+					if startTs.Before(msg.Timestamp) {
 						cancel()
 						return
 					}
-					errCnt++
-					continue
-				}
-				if startTs.Before(msg.Timestamp) {
-					cancel()
-					return
-				}
 
-				totalCnt++
+					totalCnt++
 
-				ok, err := filt.Eval(msg)
-				if err != nil {
-					continue
-				}
+					ok, err := filt.Eval(msg)
+					if err != nil {
+						continue
+					}
 
-				if ok {
-					foundCnt++
-					foundChan <- msg
+					if ok {
+						foundCnt++
+						foundChan <- msg
+					}
 				}
 			}
-		}()
+		}(ctx)
 	}
 
 	go func() {
@@ -147,7 +152,7 @@ func Search(ctx context.Context, cfg *config.Config) error {
 	defer close(msgChan)
 
 	for i := 0; i < cfg.PartitionsNumber; i++ {
-		go func() {
+		go func(ctx context.Context) {
 			cons, err := consCreateAndSubscribe(cfg, i)
 			if err != nil {
 				return
@@ -157,35 +162,40 @@ func Search(ctx context.Context, cfg *config.Config) error {
 			}(cons)
 
 			for {
-				msg, err := cons.ReadMessage(time.Minute)
-				if err != nil {
-					if err != nil && err.(kafka.Error).IsTimeout() {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					msg, err := cons.ReadMessage(time.Minute)
+					if err != nil {
+						if err != nil && err.(kafka.Error).IsTimeout() {
+							cancel()
+							return
+						}
+						errCnt++
+						continue
+					}
+					if startTs.Before(msg.Timestamp) {
 						cancel()
 						return
 					}
-					errCnt++
-					continue
-				}
-				if startTs.Before(msg.Timestamp) {
-					cancel()
-					return
-				}
 
-				totalCnt++
+					totalCnt++
 
-				ok, err := filt.Eval(msg)
-				if err != nil {
-					continue
-				}
+					ok, err := filt.Eval(msg)
+					if err != nil {
+						continue
+					}
 
-				if ok {
-					foundCnt++
-					if file != nil {
-						foundChan <- domain.FromKafka(msg)
+					if ok {
+						foundCnt++
+						if file != nil {
+							foundChan <- domain.FromKafka(msg)
+						}
 					}
 				}
 			}
-		}()
+		}(ctx)
 	}
 
 	go func() {
