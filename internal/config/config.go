@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 )
 
 const (
@@ -26,20 +27,43 @@ type Config struct {
 func NewConfig(args []string) (string, *Config, error) {
 	cfg := new(Config)
 
+	migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
+	migrateSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
+	migrateSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
+	migrateSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
+	migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
+	migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "--source-broker is used if empty")
+	migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "--source-topic is used if empty")
+	migrateSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
+
+	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
+	searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
+	searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
+	searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
+	searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
+	searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
+	searchSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
+
+	flag.Usage = func() {
+		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch)
+		if err != nil {
+			return
+		}
+		flag.CommandLine.PrintDefaults()
+	}
+
 	if len(args) < 2 {
-		return "", nil, fmt.Errorf("cfg: no cmd")
+		flag.Usage()
+		return "", nil, nil
 	}
 
 	switch args[1] {
 	case CmdMigrate:
-		migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
-		migrateSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
-		migrateSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
-		migrateSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
-		migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
-		migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "--source-broker is used if empty")
-		migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "--source-topic is used if empty")
-		migrateSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
+		if len(args) < 3 {
+			migrateSet.Usage()
+			return "", nil, nil
+		}
+
 		if err := migrateSet.Parse(args[2:]); err != nil {
 			return CmdMigrate, nil, err
 		}
@@ -70,13 +94,11 @@ func NewConfig(args []string) (string, *Config, error) {
 
 		return CmdMigrate, cfg, nil
 	case CmdSearch:
-		searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
-		searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
-		searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
-		searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
-		searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
-		searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
-		searchSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
+		if len(args) < 3 {
+			searchSet.Usage()
+			return "", nil, nil
+		}
+
 		if err := searchSet.Parse(args[2:]); err != nil {
 			return CmdSearch, nil, err
 		}
