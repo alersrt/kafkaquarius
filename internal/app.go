@@ -7,13 +7,12 @@ import (
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
-	"kafkaquarius/pkg/daemon"
 	"os"
 	"sync/atomic"
 	"time"
 )
 
-func Migrate(ctx context.Context, cfg *config.Config) (stats *domain.Stats, err error) {
+func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain.Stats, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -32,32 +31,20 @@ func Migrate(ctx context.Context, cfg *config.Config) (stats *domain.Stats, err 
 		}()
 	}
 
-	go func() {
-		var prod *kafka.Producer
-		prod, err = kafka.NewProducer(&kafka.ConfigMap{
-			"bootstrap.servers": cfg.TargetBroker,
-		})
+	switch cmd {
+	case config.CmdMigrate:
+		err := migrate(ctx, cfg, interOp, &procCnt, &errCnt)
 		if err != nil {
-			return
+			return nil, err
 		}
-		defer prod.Close()
-
-		for msg := range interOp {
-			msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
-			err = prod.Produce(msg, nil)
-			if err != nil {
-				errCnt.Add(1)
-				continue
-			} else {
-				procCnt.Add(1)
-			}
+	case config.CmdSearch:
+		err := search(ctx, cfg, interOp, &procCnt, &errCnt)
+		if err != nil {
+			return nil, err
 		}
-	}()
-
-	_, err = daemon.HandleSignals(ctx)
-	if err != nil {
-		return nil, err
 	}
+
+	<-ctx.Done()
 
 	return &domain.Stats{
 		Total:  totalCnt.Load(),
@@ -68,60 +55,72 @@ func Migrate(ctx context.Context, cfg *config.Config) (stats *domain.Stats, err 
 	}, nil
 }
 
-func Search(ctx context.Context, cfg *config.Config) (stats *domain.Stats, err error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	startTs := time.Now()
-	var totalCnt atomic.Uint64
-	var foundCnt atomic.Uint64
-	var procCnt atomic.Uint64
-	var errCnt atomic.Uint64
-	interOp := make(chan *kafka.Message)
-	defer close(interOp)
-
-	for i := 0; i < cfg.PartitionsNumber; i++ {
-		go func() {
-			err = consume(ctx, cfg, i, interOp, startTs, &totalCnt, &foundCnt, &errCnt)
-			cancel()
-		}()
+func migrate(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
+	procCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
+	prod, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers": cfg.TargetBroker,
+	})
+	if err != nil {
+		return err
 	}
+	defer prod.Close()
 
-	go func(interOp chan *kafka.Message, procCnt *atomic.Uint64) {
-		var file *os.File
-		file, err = os.Create(cfg.OutputFile)
-		if err != nil {
-			cancel()
-		}
-		defer func(file *os.File) {
-			_ = file.Close()
-		}(file)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case msg := <-interOp:
-				bytesMsg, _ := json.Marshal(domain.FromKafka(msg))
-				_, _ = file.Write(bytesMsg)
-				_, _ = file.WriteString("\n")
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-interOp:
+			msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
+			err := prod.Produce(msg, nil)
+			if err != nil {
+				errCnt.Add(1)
+				continue
+			} else {
 				procCnt.Add(1)
 			}
 		}
-	}(interOp, &procCnt)
+	}
+}
 
-	_, err = daemon.HandleSignals(ctx)
+func search(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
+	procCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
+	file, err := os.Create(cfg.OutputFile)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	write := func(msg *kafka.Message) error {
+		bytes, err := json.Marshal(domain.FromKafka(msg))
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(bytes)
+		if err != nil {
+			return err
+		}
+		_, err = file.WriteString("\n")
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
-	return &domain.Stats{
-		Total:  totalCnt.Load(),
-		Found:  foundCnt.Load(),
-		Proc:   procCnt.Load(),
-		Errors: errCnt.Load(),
-		Time:   time.Since(startTs),
-	}, nil
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-interOp:
+			err := write(msg)
+			if err != nil {
+				errCnt.Add(1)
+			} else {
+				procCnt.Add(1)
+			}
+		}
+	}
 }
 
 func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka.Message,

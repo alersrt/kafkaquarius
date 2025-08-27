@@ -21,24 +21,13 @@ func main() {
 
 	ctx := context.Background()
 
-	switch cmd {
-	case config.CmdMigrate:
-		slog.Info("migrate: start")
-		stat, err := internal.Migrate(ctx, cfg)
-		if err != nil {
-			slog.Error(fmt.Sprintf("migrate: %v", err))
-		}
-		stat.Print()
-		slog.Info("migrate: finish")
-	case config.CmdSearch:
-		slog.Info("search: start")
-		stat, err := internal.Search(ctx, cfg)
-		if err != nil {
-			slog.Error(fmt.Sprintf("search: %v", err))
-		}
-		stat.Print()
-		slog.Info("search: finish")
+	slog.Info(fmt.Sprintf("%s: start", cmd))
+	stat, err := internal.Execute(ctx, cmd, cfg)
+	if err != nil {
+		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
 	}
+	stat.Print()
+	slog.Info(fmt.Sprintf("%s: finish", cmd))
 
 	os.Exit(daemon.ExitCodeDone)
 }
