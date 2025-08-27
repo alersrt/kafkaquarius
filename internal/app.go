@@ -63,11 +63,13 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 			slog.Error(fmt.Sprintf("migrate: %+v", err))
 		}
 		prod.Close()
-		slog.Info(fmt.Sprintf("migrate: total: %d", totalCnt))
-		slog.Info(fmt.Sprintf("migrate: found: %d", foundCnt))
-		slog.Info(fmt.Sprintf("migrate: sent: %d", sentCnt))
-		slog.Info(fmt.Sprintf("migrate: errors: %d", errCnt))
-		slog.Info(fmt.Sprintf("migrate: duration: %s", time.Now().Sub(startTs).String()))
+		slog.Info(fmt.Sprintf(`
+total: %d
+found: %d
+sent: %d
+errors: %d
+time: %v
+`, totalCnt, foundCnt, sentCnt, errCnt, time.Since(startTs)))
 	}()
 	for {
 		select {
@@ -90,7 +92,6 @@ func Migrate(ctx context.Context, cfg *config.Config) {
 
 			ok, err := filt.Eval(msg)
 			if err != nil {
-				errCnt++
 				continue
 			}
 
@@ -169,11 +170,13 @@ func Search(ctx context.Context, cfg *config.Config) {
 				slog.Error(fmt.Sprintf("search: %+v", err))
 			}
 		}
-		slog.Info(fmt.Sprintf("search: total: %d", totalCnt))
-		slog.Info(fmt.Sprintf("search: found: %d", foundCnt))
-		slog.Info(fmt.Sprintf("search: written: %d", writtenCnt))
-		slog.Info(fmt.Sprintf("search: errors: %d", errCnt))
-		slog.Info(fmt.Sprintf("search: duration: %s", time.Now().Sub(startTs).String()))
+		slog.Info(fmt.Sprintf(`stat:
+total: %d
+found: %d
+written: %d
+errors: %d
+time: %v
+`, totalCnt, foundCnt, writtenCnt, errCnt, time.Since(startTs)))
 	}()
 
 	for {
@@ -197,7 +200,6 @@ func Search(ctx context.Context, cfg *config.Config) {
 
 			ok, err := filt.Eval(msg)
 			if err != nil {
-				errCnt++
 				continue
 			}
 
