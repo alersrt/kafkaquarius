@@ -12,7 +12,7 @@ func TestHandleSignals(t *testing.T) {
 		time.Sleep(time.Second)
 		cancel()
 	}()
-	act, _ := HandleSignals(ctx, cancel)
+	act, _ := HandleSignals(ctx)
 	if act != ExitCodeError {
 		t.Fatalf("exp=%d, act=%d", ExitCodeError, act)
 	}

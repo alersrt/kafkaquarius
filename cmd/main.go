@@ -19,7 +19,7 @@ func main() {
 		os.Exit(daemon.ExitCodeInvalidUsage)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 
 	switch cmd {
 	case config.CmdMigrate:
@@ -38,7 +38,7 @@ func main() {
 		}()
 	}
 
-	if code, err := daemon.HandleSignals(ctx, cancel); err != nil {
+	if code, err := daemon.HandleSignals(ctx); err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		os.Exit(code)
 	}
