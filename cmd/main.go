@@ -25,9 +25,10 @@ func main() {
 	stat, err := internal.Execute(ctx, cmd, cfg)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
+		os.Exit(daemon.ExitCodeError)
+	} else {
+		stat.Print()
+		slog.Info(fmt.Sprintf("%s: finish", cmd))
+		os.Exit(daemon.ExitCodeDone)
 	}
-	stat.Print()
-	slog.Info(fmt.Sprintf("%s: finish", cmd))
-
-	os.Exit(daemon.ExitCodeDone)
 }
