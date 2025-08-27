@@ -28,8 +28,7 @@ type Stats struct {
 }
 
 func (s *Stats) Print() {
-	sentence := `
-Total:	{{ .Total }}
+	sentence := `Total:	{{ .Total }}
 Found:	{{ .Found }}
 Proc:	{{ .Proc }}
 Errors:	{{ .Errors }}
