@@ -109,33 +109,17 @@ time: %v
 	}
 }
 
-func Search(ctx context.Context, cfg *config.Config) {
-	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":  cfg.SourceBroker,
-		"group.id":           cfg.ConsumerGroup,
-		"auto.offset.reset":  kafka.OffsetBeginning.String(),
-		"enable.auto.commit": false,
-	})
-	if err != nil {
-		slog.Error(fmt.Sprintf("search: %v", err))
-		return
-	}
+func Search(ctx context.Context, cfg *config.Config) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
-		slog.Error(fmt.Sprintf("search: %v", err))
-		return
+		return err
 	}
 	filt, err := filter.NewFilter(string(filtCont))
 	if err != nil {
-		slog.Error(fmt.Sprintf("search: %v", err))
-		return
-	}
-
-	err = cons.Subscribe(cfg.SourceTopic, nil)
-	if err != nil {
-		slog.Error(fmt.Sprintf("search: %v", err))
-		return
+		return err
 	}
 
 	startTs := time.Now()
@@ -144,72 +128,99 @@ func Search(ctx context.Context, cfg *config.Config) {
 	writtenCnt := 0
 	errCnt := 0
 	var foundMsgs []*domain.Message
+	foundChan := make(chan *domain.Message)
 	var file *os.File
 	if cfg.OutputFile != "" {
 		file, err = os.Create(cfg.OutputFile)
 		if err != nil {
-			slog.Error(fmt.Sprintf("search: %v", err))
-			return
+			return err
 		}
+		defer file.Close()
 	}
 
-	defer func() {
-		if err := cons.Close(); err != nil {
-			slog.Error(fmt.Sprintf("search: %+v", err))
-		}
-		if file != nil {
-			bytesMsgs, err := json.MarshalIndent(foundMsgs, "", "  ")
+	msgChan := make(chan *kafka.Message)
+	defer close(msgChan)
+
+	for i := 0; i < cfg.PartitionsNumber; i++ {
+		go func() {
+			cons, err := consCreateAndSubscribe(cfg, i)
 			if err != nil {
-				slog.Error(fmt.Sprintf("search: %+v", err))
+				return
 			}
-			_, err = file.Write(bytesMsgs)
-			if err != nil {
-				slog.Error(fmt.Sprintf("search: %+v", err))
+			defer cons.Close()
+
+			for {
+				msg, err := cons.ReadMessage(time.Minute)
+				if err != nil {
+					if err != nil && err.(kafka.Error).IsTimeout() {
+						cancel()
+						return
+					}
+					errCnt++
+					continue
+				}
+				if startTs.Before(msg.Timestamp) {
+					cancel()
+					return
+				}
+
+				totalCnt++
+
+				ok, err := filt.Eval(msg)
+				if err != nil {
+					continue
+				}
+
+				if ok {
+					foundCnt++
+					if file != nil {
+						foundChan <- domain.FromKafka(msg)
+					}
+				}
 			}
-			if err := file.Close(); err != nil {
-				slog.Error(fmt.Sprintf("search: %+v", err))
-			}
+		}()
+	}
+
+	go func() {
+		for msg := range foundChan {
+			foundMsgs = append(foundMsgs, msg)
 		}
-		slog.Info(fmt.Sprintf(`stat:
+	}()
+
+	<-ctx.Done()
+
+	if file != nil {
+		bytesMsgs, _ := json.MarshalIndent(foundMsgs, "", "  ")
+		_, _ = file.Write(bytesMsgs)
+		_ = file.Close()
+	}
+	slog.Info(fmt.Sprintf(`stat:
 total: %d
 found: %d
 written: %d
 errors: %d
 time: %v
 `, totalCnt, foundCnt, writtenCnt, errCnt, time.Since(startTs)))
-	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			msg, err := cons.ReadMessage(time.Minute)
-			if err != nil {
-				if err != nil && err.(kafka.Error).IsTimeout() {
-					return
-				}
-				errCnt++
-				continue
-			}
-			if startTs.Before(msg.Timestamp) {
-				return
-			}
+	return nil
+}
 
-			totalCnt++
-
-			ok, err := filt.Eval(msg)
-			if err != nil {
-				continue
-			}
-
-			if ok {
-				foundCnt++
-				if file != nil {
-					foundMsgs = append(foundMsgs, domain.FromKafka(msg))
-					writtenCnt++
-				}
-			}
-		}
+func consCreateAndSubscribe(cfg *config.Config, i int) (*kafka.Consumer, error) {
+	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers":  cfg.SourceBroker,
+		"group.id":           cfg.ConsumerGroup,
+		"client.id":          i,
+		"auto.offset.reset":  kafka.OffsetBeginning.String(),
+		"enable.auto.commit": false,
+	})
+	if err != nil {
+		return nil, err
 	}
+
+	err = cons.Subscribe(cfg.SourceTopic, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return cons, nil
 }
