@@ -23,9 +23,19 @@ func main() {
 
 	switch cmd {
 	case config.CmdMigrate:
-		go internal.Migrate(ctx, cfg)
+		go func() {
+			err := internal.Migrate(ctx, cfg)
+			if err != nil {
+				slog.Error(fmt.Sprintf("migrate: %v", err))
+			}
+		}()
 	case config.CmdSearch:
-		go internal.Search(ctx, cfg)
+		go func() {
+			err := internal.Search(ctx, cfg)
+			if err != nil {
+				slog.Error(fmt.Sprintf("search: %v", err))
+			}
+		}()
 	}
 
 	if code, err := daemon.HandleSignals(ctx, cancel); err != nil {

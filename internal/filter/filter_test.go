@@ -35,3 +35,27 @@ func TestFilter(t *testing.T) {
 		t.Errorf("expected true")
 	}
 }
+
+func BenchmarkFilter_Eval(b *testing.B) {
+	filterContent := `Value.some == 0
+&& Headers.key1 in ['value']
+&& Headers.size() != 0
+&& Key.kf == 'test_key'
+&& Timestamp > timestamp('1970-01-01T00:00:00.000Z')
+`
+	testedUnit, _ := NewFilter(filterContent)
+
+	msg := &kafka.Message{
+		Key:   []byte("{\"kf\":\"test_key\"}"),
+		Value: []byte("{\"some\":0}"),
+		Headers: []kafka.Header{{
+			Key:   "key1",
+			Value: []byte("value"),
+		}},
+		Timestamp: time.Now(),
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, _ = testedUnit.Eval(msg)
+	}
+}

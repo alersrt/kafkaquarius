@@ -12,13 +12,14 @@ const (
 )
 
 type Config struct {
-	FilterFile    string `json:"filter_file,omitempty"`
-	OutputFile    string `json:"output_file,omitempty"`
-	SourceBroker  string `json:"source_broker,omitempty"`
-	TargetBroker  string `json:"target_broker,omitempty"`
-	SourceTopic   string `json:"source_topic,omitempty"`
-	TargetTopic   string `json:"target_topic,omitempty"`
-	ConsumerGroup string `json:"consumer_group,omitempty"`
+	FilterFile       string `json:"filter_file,omitempty"`
+	OutputFile       string `json:"output_file,omitempty"`
+	SourceBroker     string `json:"source_broker,omitempty"`
+	TargetBroker     string `json:"target_broker,omitempty"`
+	SourceTopic      string `json:"source_topic,omitempty"`
+	TargetTopic      string `json:"target_topic,omitempty"`
+	ConsumerGroup    string `json:"consumer_group,omitempty"`
+	PartitionsNumber int    `json:"partitions_number,omitempty"`
 }
 
 // NewConfig parses flags and returns list of parsed values in the Config struct.
@@ -38,6 +39,7 @@ func NewConfig(args []string) (string, *Config, error) {
 		migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
 		migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "--source-broker is used if empty")
 		migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "--source-topic is used if empty")
+		migrateSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
 		if err := migrateSet.Parse(args[2:]); err != nil {
 			return CmdMigrate, nil, err
 		}
@@ -74,6 +76,7 @@ func NewConfig(args []string) (string, *Config, error) {
 		searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
 		searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
 		searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
+		searchSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
 		if err := searchSet.Parse(args[2:]); err != nil {
 			return CmdSearch, nil, err
 		}
