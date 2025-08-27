@@ -7,6 +7,7 @@ import (
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
+	"kafkaquarius/pkg/daemon"
 	"os"
 	"sync/atomic"
 	"time"
@@ -53,7 +54,10 @@ func Migrate(ctx context.Context, cfg *config.Config) (stats *domain.Stats, err 
 		}
 	}()
 
-	<-ctx.Done()
+	_, err = daemon.HandleSignals(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return &domain.Stats{
 		Total:  totalCnt.Load(),
@@ -106,7 +110,10 @@ func Search(ctx context.Context, cfg *config.Config) (stats *domain.Stats, err e
 		}
 	}(interOp, &procCnt)
 
-	<-ctx.Done()
+	_, err = daemon.HandleSignals(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return &domain.Stats{
 		Total:  totalCnt.Load(),
