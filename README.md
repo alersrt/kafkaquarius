@@ -8,7 +8,8 @@ kafkaquarius-current-linux search \
   --source-broker=localhost:9092 \
   --source-topic=sample-topic \
   --filter-file=examples/filter.txt \
-  --output-file=examples/test.txt
+  --output-file=examples/test.txt \
+  --partitions-number=1
 ```
 
 ```shell
@@ -18,7 +19,8 @@ kafkaquarius-current-linux migrate \
   --source-topic=sample-topic \
   --target-broker=localhost:9092 \
   --target-topic=sample-topic-dest \
-  --filter-file=examples/filter.txt
+  --filter-file=examples/filter.txt \
+  --partitions-number=1
 ```
 
 Filter example: [filter.txt](examples/filter.txt)
