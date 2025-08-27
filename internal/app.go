@@ -184,24 +184,25 @@ func Search(ctx context.Context, cfg *config.Config) error {
 	go func() {
 		for msg := range foundChan {
 			foundMsgs = append(foundMsgs, msg)
+			writtenCnt++
 		}
 	}()
 
-	<-ctx.Done()
-
-	if file != nil {
-		bytesMsgs, _ := json.MarshalIndent(foundMsgs, "", "  ")
-		_, _ = file.Write(bytesMsgs)
-		_ = file.Close()
-	}
-	slog.Info(fmt.Sprintf(`stat:
+	defer func() {
+		if file != nil {
+			bytesMsgs, _ := json.MarshalIndent(foundMsgs, "", "  ")
+			_, _ = file.Write(bytesMsgs)
+		}
+		slog.Info(fmt.Sprintf(`stat:
 total: %d
 found: %d
 written: %d
 errors: %d
 time: %v
 `, totalCnt, foundCnt, writtenCnt, errCnt, time.Since(startTs)))
+	}()
 
+	<-ctx.Done()
 	return nil
 }
 
