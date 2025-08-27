@@ -17,7 +17,10 @@ const (
 )
 
 // HandleSignals handles os signals. Returns exit code and error if any.
-func HandleSignals(ctx context.Context, cancel func()) (int, error) {
+func HandleSignals(ctx context.Context) (int, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	signalChan := make(chan os.Signal, 1)
 	defer signal.Stop(signalChan)
 
