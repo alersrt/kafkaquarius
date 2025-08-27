@@ -3,21 +3,60 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
-	"log/slog"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
-func Migrate(ctx context.Context, cfg *config.Config) error {
+func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain.Stats, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var prod *kafka.Producer
+	startTs := time.Now()
+	var totalCnt atomic.Uint64
+	var foundCnt atomic.Uint64
+	var procCnt atomic.Uint64
+	var errCnt atomic.Uint64
+	interOp := make(chan *kafka.Message)
+	defer close(interOp)
+
+	for i := 0; i < cfg.PartitionsNumber; i++ {
+		go func() {
+			err = consume(ctx, cfg, i, interOp, startTs, &totalCnt, &foundCnt, &errCnt)
+			cancel()
+		}()
+	}
+
+	switch cmd {
+	case config.CmdMigrate:
+		err := migrate(ctx, cfg, interOp, &procCnt, &errCnt)
+		if err != nil {
+			return nil, err
+		}
+	case config.CmdSearch:
+		err := search(ctx, cfg, interOp, &procCnt, &errCnt)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	<-ctx.Done()
+
+	return &domain.Stats{
+		Total:  totalCnt.Load(),
+		Found:  foundCnt.Load(),
+		Proc:   procCnt.Load(),
+		Errors: errCnt.Load(),
+		Time:   time.Since(startTs),
+	}, nil
+}
+
+func migrate(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
+	procCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
 	prod, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": cfg.TargetBroker,
 	})
@@ -26,99 +65,66 @@ func Migrate(ctx context.Context, cfg *config.Config) error {
 	}
 	defer prod.Close()
 
-	filtCont, err := os.ReadFile(cfg.FilterFile)
-	if err != nil {
-		return err
-	}
-	filt, err := filter.NewFilter(string(filtCont))
-	if err != nil {
-		return err
-	}
-
-	startTs := time.Now()
-	totalCnt := 0
-	foundCnt := 0
-	sentCnt := 0
-	errCnt := 0
-	foundChan := make(chan *kafka.Message)
-	defer close(foundChan)
-
-	for i := 0; i < cfg.PartitionsNumber; i++ {
-		go func(ctx context.Context) {
-			cons, err := consCreateAndSubscribe(cfg, i)
-			if err != nil {
-				return
-			}
-			defer func(cons *kafka.Consumer) {
-				_ = cons.Close()
-			}(cons)
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					msg, err := cons.ReadMessage(time.Minute)
-					if err != nil {
-						if err != nil && err.(kafka.Error).IsTimeout() {
-							cancel()
-							return
-						}
-						errCnt++
-						continue
-					}
-					if startTs.Before(msg.Timestamp) {
-						cancel()
-						return
-					}
-
-					totalCnt++
-
-					ok, err := filt.Eval(msg)
-					if err != nil {
-						continue
-					}
-
-					if ok {
-						foundCnt++
-						foundChan <- msg
-					}
-				}
-			}
-		}(ctx)
-	}
-
-	go func() {
-		for msg := range foundChan {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-interOp:
 			msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
 			err := prod.Produce(msg, nil)
 			if err != nil {
-				errCnt++
+				errCnt.Add(1)
 				continue
 			} else {
-				sentCnt++
+				procCnt.Add(1)
 			}
 		}
-	}()
-
-	defer func() {
-		slog.Info(fmt.Sprintf(`
-total: %d
-found: %d
-sent: %d
-errors: %d
-time: %v
-`, totalCnt, foundCnt, sentCnt, errCnt, time.Since(startTs)))
-	}()
-
-	<-ctx.Done()
-	return nil
+	}
 }
 
-func Search(ctx context.Context, cfg *config.Config) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+func search(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
+	procCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
+	file, err := os.Create(cfg.OutputFile)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
+	write := func(msg *kafka.Message) error {
+		bytes, err := json.Marshal(domain.FromKafka(msg))
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(bytes)
+		if err != nil {
+			return err
+		}
+		_, err = file.WriteString("\n")
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-interOp:
+			err := write(msg)
+			if err != nil {
+				errCnt.Add(1)
+			} else {
+				procCnt.Add(1)
+			}
+		}
+	}
+}
+
+func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka.Message,
+	startTs time.Time, totalCnt *atomic.Uint64, foundCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
 		return err
@@ -128,102 +134,6 @@ func Search(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	startTs := time.Now()
-	totalCnt := 0
-	foundCnt := 0
-	writtenCnt := 0
-	errCnt := 0
-	var foundMsgs []*domain.Message
-	foundChan := make(chan *domain.Message)
-	defer close(foundChan)
-
-	var file *os.File
-	if cfg.OutputFile != "" {
-		file, err = os.Create(cfg.OutputFile)
-		if err != nil {
-			return err
-		}
-		defer func(file *os.File) {
-			_ = file.Close()
-		}(file)
-	}
-
-	msgChan := make(chan *kafka.Message)
-	defer close(msgChan)
-
-	for i := 0; i < cfg.PartitionsNumber; i++ {
-		go func(ctx context.Context) {
-			cons, err := consCreateAndSubscribe(cfg, i)
-			if err != nil {
-				return
-			}
-			defer func(cons *kafka.Consumer) {
-				_ = cons.Close()
-			}(cons)
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					msg, err := cons.ReadMessage(time.Minute)
-					if err != nil {
-						if err != nil && err.(kafka.Error).IsTimeout() {
-							cancel()
-							return
-						}
-						errCnt++
-						continue
-					}
-					if startTs.Before(msg.Timestamp) {
-						cancel()
-						return
-					}
-
-					totalCnt++
-
-					ok, err := filt.Eval(msg)
-					if err != nil {
-						continue
-					}
-
-					if ok {
-						foundCnt++
-						if file != nil {
-							foundChan <- domain.FromKafka(msg)
-						}
-					}
-				}
-			}
-		}(ctx)
-	}
-
-	go func() {
-		for msg := range foundChan {
-			foundMsgs = append(foundMsgs, msg)
-			writtenCnt++
-		}
-	}()
-
-	defer func() {
-		if file != nil {
-			bytesMsgs, _ := json.MarshalIndent(foundMsgs, "", "  ")
-			_, _ = file.Write(bytesMsgs)
-		}
-		slog.Info(fmt.Sprintf(`stat:
-total: %d
-found: %d
-written: %d
-errors: %d
-time: %v
-`, totalCnt, foundCnt, writtenCnt, errCnt, time.Since(startTs)))
-	}()
-
-	<-ctx.Done()
-	return nil
-}
-
-func consCreateAndSubscribe(cfg *config.Config, i int) (*kafka.Consumer, error) {
 	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":  cfg.SourceBroker,
 		"group.id":           cfg.ConsumerGroup,
@@ -232,13 +142,48 @@ func consCreateAndSubscribe(cfg *config.Config, i int) (*kafka.Consumer, error) 
 		"enable.auto.commit": false,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer func(cons *kafka.Consumer) {
+		_ = cons.Close()
+	}(cons)
 
 	err = cons.Subscribe(cfg.SourceTopic, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer func(cons *kafka.Consumer) {
+		_ = cons.Unsubscribe()
+	}(cons)
 
-	return cons, nil
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			msg, err := cons.ReadMessage(time.Minute)
+			if err != nil {
+				if err != nil && err.(kafka.Error).IsTimeout() {
+					return nil
+				}
+				errCnt.Add(1)
+				continue
+			}
+			if startTs.Before(msg.Timestamp) {
+				return nil
+			}
+
+			totalCnt.Add(1)
+
+			ok, err := filt.Eval(msg)
+			if err != nil {
+				continue
+			}
+
+			if ok {
+				foundCnt.Add(1)
+				interOp <- msg
+			}
+		}
+	}
 }
