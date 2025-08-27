@@ -84,7 +84,6 @@ mainpath ?= ./cmd/main.go
 go.build:
 	mkdir -p ${builddir}
 	GOARCH=amd64 GOOS=linux CGO_LDFLAGS='-static -w -s' go build -o ${builddir}/${pkgname}-${pkgver}-linux ${mainpath}
-	upx --best ${builddir}/${pkgname}-${pkgver}-linux
 
 go.clean:
 	go clean
