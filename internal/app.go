@@ -9,6 +9,7 @@ import (
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -26,12 +27,22 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	interOp := make(chan *kafka.Message)
 	defer close(interOp)
 
+	var wg sync.WaitGroup
 	for i := 0; i < cfg.ThreadsNumber; i++ {
 		go func() {
+			wg.Add(1)
 			err := consume(ctx, cfg, i, interOp, &totalCnt, &foundCnt, &errCnt)
-			cancel(err)
+			if err != nil {
+				cancel(err)
+			}
+			wg.Done()
 		}()
 	}
+
+	go func() {
+		wg.Wait()
+		cancel(nil)
+	}()
 
 	var err error
 	switch cmd {
@@ -149,7 +160,7 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 		_ = cons.Close()
 	}(cons)
 
-	timeoutMs := 5 * time.Second.Milliseconds()
+	timeoutMs := 5 * time.Minute.Milliseconds()
 
 	md, err := cons.GetMetadata(&cfg.SourceTopic, false, int(timeoutMs))
 	if err != nil {
@@ -161,7 +172,7 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 		return nil
 	}
 
-	parts := make([]kafka.TopicPartition, len(part))
+	var parts []kafka.TopicPartition
 	for _, p := range part {
 		parts = append(parts, kafka.TopicPartition{
 			Topic:     &cfg.SourceTopic,
@@ -216,30 +227,30 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 }
 
 // calcPart returns list with partition numbers. Numeration is started from zero.
-func calcPart(i int, parts int, threads int) []int {
-	if i > parts {
+func calcPart(threadNo int, partsNum int, threadsNum int) []int {
+	if threadNo > partsNum {
 		return nil
 	}
-	div := parts / threads
-	rem := parts % threads
+	div := partsNum / threadsNum
+	rem := threadsNum % partsNum
 
 	if div == 0 {
-		if i < parts {
-			return []int{i}
+		if threadNo < partsNum {
+			return []int{threadNo}
 		} else {
 			return nil
 		}
 	} else {
-		if i*threads <= parts {
-			res := make([]int, threads)
-			for j := 0; j < threads; j++ {
-				res[j] = i*threads + j
+		if threadNo*div < partsNum {
+			res := make([]int, div)
+			for j := 0; j < div; j++ {
+				res[j] = threadNo*div + j
 			}
 			return res
 		} else {
 			res := make([]int, rem)
 			for j := 0; j < rem; j++ {
-				res[j] = i*rem + j
+				res[j] = threadNo*div + j
 			}
 			return res
 		}
