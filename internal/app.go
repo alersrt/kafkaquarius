@@ -26,7 +26,7 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	interOp := make(chan *kafka.Message)
 	defer close(interOp)
 
-	for i := 0; i < cfg.PartitionsNumber; i++ {
+	for i := 0; i < cfg.ThreadsNumber; i++ {
 		go func() {
 			err := consume(ctx, cfg, i, interOp, &totalCnt, &foundCnt, &errCnt)
 			cancel(err)
@@ -149,18 +149,29 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 		_ = cons.Close()
 	}(cons)
 
-	timeoutMs := time.Second.Milliseconds()
-R1:
-	parts, err := cons.OffsetsForTimes([]kafka.TopicPartition{{
-		Topic:     &cfg.SourceTopic,
-		Partition: int32(i),
-		Offset:    kafka.Offset(cfg.SinceTime.UnixMilli()),
-	}}, int(timeoutMs))
+	timeoutMs := 5 * time.Second.Milliseconds()
+
+	md, err := cons.GetMetadata(&cfg.SourceTopic, false, int(timeoutMs))
 	if err != nil {
-		if err.(kafka.Error).Code() == kafka.ErrTimedOut {
-			timeoutMs += timeoutMs
-			goto R1
-		}
+		return err
+	}
+
+	part := calcPart(i, len(md.Topics[cfg.SourceTopic].Partitions), cfg.ThreadsNumber)
+	if part == nil {
+		return nil
+	}
+
+	parts := make([]kafka.TopicPartition, len(part))
+	for _, p := range part {
+		parts = append(parts, kafka.TopicPartition{
+			Topic:     &cfg.SourceTopic,
+			Partition: int32(p),
+			Offset:    kafka.Offset(cfg.SinceTime.UnixMilli()),
+		})
+	}
+
+	parts, err = cons.OffsetsForTimes(parts, int(timeoutMs))
+	if err != nil {
 		return err
 	}
 	err = cons.Assign(parts)
@@ -200,6 +211,37 @@ R1:
 				foundCnt.Add(1)
 				interOp <- msg
 			}
+		}
+	}
+}
+
+// calcPart returns list with partition numbers. Numeration is started from zero.
+func calcPart(i int, parts int, threads int) []int {
+	if i > parts {
+		return nil
+	}
+	div := parts / threads
+	rem := parts % threads
+
+	if div == 0 {
+		if i < parts {
+			return []int{i}
+		} else {
+			return nil
+		}
+	} else {
+		if i*threads <= parts {
+			res := make([]int, threads)
+			for j := 0; j < threads; j++ {
+				res[j] = i*threads + j
+			}
+			return res
+		} else {
+			res := make([]int, rem)
+			for j := 0; j < rem; j++ {
+				res[j] = i*rem + j
+			}
+			return res
 		}
 	}
 }

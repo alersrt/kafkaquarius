@@ -14,16 +14,16 @@ const (
 )
 
 type Config struct {
-	FilterFile       string    `json:"filter_file,omitempty"`
-	OutputFile       string    `json:"output_file,omitempty"`
-	SourceBroker     string    `json:"source_broker,omitempty"`
-	TargetBroker     string    `json:"target_broker,omitempty"`
-	SourceTopic      string    `json:"source_topic,omitempty"`
-	TargetTopic      string    `json:"target_topic,omitempty"`
-	ConsumerGroup    string    `json:"consumer_group,omitempty"`
-	PartitionsNumber int       `json:"partitions_number,omitempty"`
-	SinceTime        time.Time `json:"since_time,omitempty"`
-	ToTime           time.Time `json:"to_time"`
+	FilterFile    string    `json:"filter_file,omitempty"`
+	OutputFile    string    `json:"output_file,omitempty"`
+	SourceBroker  string    `json:"source_broker,omitempty"`
+	TargetBroker  string    `json:"target_broker,omitempty"`
+	SourceTopic   string    `json:"source_topic,omitempty"`
+	TargetTopic   string    `json:"target_topic,omitempty"`
+	ConsumerGroup string    `json:"consumer_group,omitempty"`
+	ThreadsNumber int       `json:"threads_number,omitempty"`
+	SinceTime     time.Time `json:"since_time,omitempty"`
+	ToTime        time.Time `json:"to_time"`
 }
 
 // NewConfig parses flags and returns list of parsed values in the Config struct.
@@ -40,7 +40,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
 	migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "--source-broker is used if empty")
 	migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "--source-topic is used if empty")
-	migrateSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
+	migrateSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
 	migrateSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time")
 	migrateSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, now by default")
 
@@ -50,7 +50,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
 	searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
 	searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
-	searchSet.IntVar(&cfg.PartitionsNumber, "partitions-number", 1, "")
+	searchSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
 	searchSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time")
 	searchSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, now by default")
 
