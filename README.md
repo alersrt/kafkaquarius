@@ -2,25 +2,54 @@
 
 CLI tool for Kafka's messages migration
 
-```shell
-kafkaquarius-current-linux search \
-  --consumer-group=kafkaquarius \
-  --source-broker=localhost:9092 \
-  --source-topic=sample-topic \
-  --filter-file=examples/filter.txt \
-  --output-file=examples/test.txt \
-  --partitions-number=1
+```
+Usage of kafkaquarius-current-linux:
+migrate
+search
 ```
 
-```shell
-kafkaquarius-current-linux migrate \
-  --consumer-group=kafkaquarius \
-  --source-broker=localhost:9092 \
-  --source-topic=sample-topic \
-  --target-broker=localhost:9092 \
-  --target-topic=sample-topic-dest \
-  --filter-file=examples/filter.txt \
-  --partitions-number=1
+```
+kafkaquarius-current-linux migrate
+Usage of migrate:
+  -consumer-group string
+        required
+  -filter-file string
+        required
+  -since-time int
+        unix epoch time
+  -source-broker string
+        required
+  -source-topic string
+        required
+  -target-broker string
+        --source-broker is used if empty
+  -target-topic string
+        --source-topic is used if empty
+  -threads-number int
+         (default 1)
+  -to-time int
+        unix epoch time, now by default
+```
+
+```
+kafkaquarius-current-linux search
+Usage of search:
+  -consumer-group string
+        required
+  -filter-file string
+        required
+  -output-file string
+        
+  -since-time int
+        unix epoch time
+  -source-broker string
+        required
+  -source-topic string
+        required
+  -threads-number int
+         (default 1)
+  -to-time int
+        unix epoch time, now by default
 ```
 
 Filter example: [filter.txt](examples/filter.txt)
