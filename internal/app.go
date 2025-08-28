@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/domain"
@@ -12,9 +13,9 @@ import (
 	"time"
 )
 
-func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain.Stats, err error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats, error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
 	startTs := time.Now()
 	var totalCnt atomic.Uint64
@@ -27,11 +28,12 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain
 
 	for i := 0; i < cfg.PartitionsNumber; i++ {
 		go func() {
-			err = consume(ctx, cfg, i, interOp, &totalCnt, &foundCnt, &errCnt)
-			cancel()
+			err := consume(ctx, cfg, i, interOp, &totalCnt, &foundCnt, &errCnt)
+			cancel(err)
 		}()
 	}
 
+	var err error
 	switch cmd {
 	case config.CmdMigrate:
 		err = migrate(ctx, cfg, interOp, &procCnt, &errCnt)
@@ -39,18 +41,19 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain
 		err = search(ctx, cfg, interOp, &procCnt, &errCnt)
 	}
 
-	defer func() {
-		stats = &domain.Stats{
-			Total:  totalCnt.Load(),
-			Found:  foundCnt.Load(),
-			Proc:   procCnt.Load(),
-			Errors: errCnt.Load(),
-			Time:   time.Since(startTs).Truncate(time.Second),
-		}
-	}()
-
 	<-ctx.Done()
-	return
+
+	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
+		err = errors.Join(err, cause)
+	}
+
+	return &domain.Stats{
+		Total:  totalCnt.Load(),
+		Found:  foundCnt.Load(),
+		Proc:   procCnt.Load(),
+		Errors: errCnt.Load(),
+		Time:   time.Since(startTs).Truncate(time.Second),
+	}, err
 }
 
 func migrate(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
@@ -146,23 +149,27 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 		_ = cons.Close()
 	}(cons)
 
+	timeoutMs := time.Second.Milliseconds()
+R1:
 	parts, err := cons.OffsetsForTimes([]kafka.TopicPartition{{
-		Topic:  &cfg.SourceTopic,
-		Offset: kafka.Offset(cfg.SinceTime.UnixMilli()),
-	}}, int(time.Second.Milliseconds()))
+		Topic:     &cfg.SourceTopic,
+		Partition: int32(i),
+		Offset:    kafka.Offset(cfg.SinceTime.UnixMilli()),
+	}}, int(timeoutMs))
 	if err != nil {
+		if err.(kafka.Error).Code() == kafka.ErrTimedOut {
+			timeoutMs += timeoutMs
+			goto R1
+		}
 		return err
 	}
 	err = cons.Assign(parts)
 	if err != nil {
 		return err
 	}
-	_, err = cons.SeekPartitions(parts)
-	if err != nil {
-		return err
-	}
+
 	defer func(cons *kafka.Consumer) {
-		_ = cons.Unsubscribe()
+		_ = cons.Unassign()
 	}(cons)
 
 	for {

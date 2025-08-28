@@ -128,19 +128,23 @@ func NewConfig(args []string) (string, *Config, error) {
 		return "", nil, fmt.Errorf("wrong cmd")
 	}
 
-	if sinceTime > toTime {
+	if sinceTime == 0 {
+		cfg.SinceTime = time.Time{}
+	} else {
+		cfg.SinceTime = time.Unix(sinceTime, 0)
+	}
+	if toTime == 0 {
+		cfg.ToTime = time.Now()
+	} else {
+		cfg.ToTime = time.Unix(toTime, 0)
+	}
+
+	if cfg.SinceTime.After(cfg.ToTime) {
 		errors.Join(valErrs, fmt.Errorf("cfg: --since-time must be before --to-time"))
 	}
 
 	if valErrs != nil {
 		return cmd, nil, valErrs
-	}
-
-	cfg.SinceTime = time.UnixMilli(sinceTime)
-	if toTime == 0 {
-		cfg.ToTime = time.Now()
-	} else {
-		cfg.ToTime = time.UnixMilli(toTime)
 	}
 
 	return cmd, cfg, nil
