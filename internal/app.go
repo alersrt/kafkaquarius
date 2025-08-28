@@ -8,6 +8,7 @@ import (
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
+	"math"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -231,23 +232,23 @@ func calcPart(threadNo int, partsNum int, threadsNum int) []int {
 	if threadNo > partsNum {
 		return nil
 	}
-	div := partsNum / threadsNum
-	rem := threadsNum % partsNum
+	div := int(math.Ceil(float64(partsNum) / float64(threadsNum)))
 
-	if div == 0 {
+	if div == 1 {
 		if threadNo < partsNum {
 			return []int{threadNo}
 		} else {
 			return nil
 		}
 	} else {
-		if threadNo*div < partsNum {
+		if threadNo*div+1 < partsNum {
 			res := make([]int, div)
 			for j := 0; j < div; j++ {
 				res[j] = threadNo*div + j
 			}
 			return res
 		} else {
+			rem := partsNum - threadNo*div
 			res := make([]int, rem)
 			for j := 0; j < rem; j++ {
 				res[j] = threadNo*div + j
