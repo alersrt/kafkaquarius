@@ -146,7 +146,18 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 		_ = cons.Close()
 	}(cons)
 
-	err = cons.Subscribe(cfg.SourceTopic, nil)
+	parts, err := cons.OffsetsForTimes([]kafka.TopicPartition{{
+		Topic:  &cfg.SourceTopic,
+		Offset: kafka.Offset(cfg.SinceTime.UnixMilli()),
+	}}, int(time.Second.Milliseconds()))
+	if err != nil {
+		return err
+	}
+	err = cons.Assign(parts)
+	if err != nil {
+		return err
+	}
+	_, err = cons.SeekPartitions(parts)
 	if err != nil {
 		return err
 	}

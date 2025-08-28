@@ -136,11 +136,11 @@ func NewConfig(args []string) (string, *Config, error) {
 		return cmd, nil, valErrs
 	}
 
-	cfg.SinceTime = time.Unix(sinceTime, 0)
+	cfg.SinceTime = time.UnixMilli(sinceTime)
 	if toTime == 0 {
 		cfg.ToTime = time.Now()
 	} else {
-		cfg.ToTime = time.Unix(toTime, 0)
+		cfg.ToTime = time.UnixMilli(toTime)
 	}
 
 	return cmd, cfg, nil
