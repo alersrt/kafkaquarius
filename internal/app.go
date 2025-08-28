@@ -8,9 +8,7 @@ import (
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
 	"os"
-	"os/signal"
 	"sync/atomic"
-	"syscall"
 	"time"
 )
 
@@ -18,7 +16,6 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	stats = &domain.Stats{}
 	startTs := time.Now()
 	var totalCnt atomic.Uint64
 	var foundCnt atomic.Uint64
@@ -43,29 +40,17 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain
 	}
 
 	defer func() {
-		stats.Total = totalCnt.Load()
-		stats.Found = foundCnt.Load()
-		stats.Proc = procCnt.Load()
-		stats.Errors = errCnt.Load()
-		stats.Time = time.Since(startTs)
+		stats = &domain.Stats{
+			Total:  totalCnt.Load(),
+			Found:  foundCnt.Load(),
+			Proc:   procCnt.Load(),
+			Errors: errCnt.Load(),
+			Time:   time.Since(startTs).Truncate(time.Second),
+		}
 	}()
 
-	signalChan := make(chan os.Signal, 1)
-	defer signal.Stop(signalChan)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	for {
-		select {
-		case s := <-signalChan:
-			switch s {
-			case syscall.SIGINT | syscall.SIGTERM:
-				cancel()
-				return
-			}
-		case <-ctx.Done():
-			err = ctx.Err()
-			return
-		}
-	}
+	<-ctx.Done()
+	return
 }
 
 func migrate(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,

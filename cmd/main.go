@@ -8,6 +8,8 @@ import (
 	"kafkaquarius/pkg/daemon"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -22,7 +24,8 @@ func main() {
 		os.Exit(daemon.ExitCodeInvalidUsage)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	slog.Info(fmt.Sprintf("%s: start", cmd))
 	stats, err := internal.Execute(ctx, cmd, cfg)

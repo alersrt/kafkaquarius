@@ -11,9 +11,9 @@ const (
 	ExitCodeDone         = 0
 	ExitCodeError        = 1
 	ExitCodeInvalidUsage = 2
-	ExitCodeInterrupt    = 130
-	ExitCodeKill         = 137
-	ExitCodeTerminate    = 143
+	ExitCodeInterrupt    = 128 + int(syscall.SIGINT)
+	ExitCodeKill         = 128 + int(syscall.SIGKILL)
+	ExitCodeTerminate    = 128 + int(syscall.SIGTERM)
 )
 
 // HandleSignals handles os signals. Returns exit code and error if any.
