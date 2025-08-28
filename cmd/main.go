@@ -18,16 +18,21 @@ func main() {
 		slog.Error(fmt.Sprintf("%v", err))
 		os.Exit(daemon.ExitCodeInvalidUsage)
 	}
+	if cfg == nil {
+		os.Exit(daemon.ExitCodeInvalidUsage)
+	}
 
 	ctx := context.Background()
 
 	slog.Info(fmt.Sprintf("%s: start", cmd))
-	stat, err := internal.Execute(ctx, cmd, cfg)
+	stats, err := internal.Execute(ctx, cmd, cfg)
+	if stats != nil {
+		stats.Print()
+	}
 	if err != nil {
 		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
 		os.Exit(daemon.ExitCodeError)
 	} else {
-		stat.Print()
 		slog.Info(fmt.Sprintf("%s: finish", cmd))
 		os.Exit(daemon.ExitCodeDone)
 	}

@@ -8,7 +8,9 @@ import (
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
 	"os"
+	"os/signal"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -16,43 +18,54 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (stats *domain
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	stats = &domain.Stats{}
 	startTs := time.Now()
 	var totalCnt atomic.Uint64
 	var foundCnt atomic.Uint64
 	var procCnt atomic.Uint64
 	var errCnt atomic.Uint64
+
 	interOp := make(chan *kafka.Message)
 	defer close(interOp)
 
 	for i := 0; i < cfg.PartitionsNumber; i++ {
 		go func() {
-			err = consume(ctx, cfg, i, interOp, startTs, &totalCnt, &foundCnt, &errCnt)
+			err = consume(ctx, cfg, i, interOp, &totalCnt, &foundCnt, &errCnt)
 			cancel()
 		}()
 	}
 
 	switch cmd {
 	case config.CmdMigrate:
-		err := migrate(ctx, cfg, interOp, &procCnt, &errCnt)
-		if err != nil {
-			return nil, err
-		}
+		err = migrate(ctx, cfg, interOp, &procCnt, &errCnt)
 	case config.CmdSearch:
-		err := search(ctx, cfg, interOp, &procCnt, &errCnt)
-		if err != nil {
-			return nil, err
-		}
+		err = search(ctx, cfg, interOp, &procCnt, &errCnt)
 	}
 
-	<-ctx.Done()
+	defer func() {
+		stats.Total = totalCnt.Load()
+		stats.Found = foundCnt.Load()
+		stats.Proc = procCnt.Load()
+		stats.Errors = errCnt.Load()
+		stats.Time = time.Since(startTs)
+	}()
 
-	return &domain.Stats{
-		Total:  totalCnt.Load(),
-		Found:  foundCnt.Load(),
-		Proc:   procCnt.Load(),
-		Errors: errCnt.Load(),
-		Time:   time.Since(startTs),
-	}, nil
+	signalChan := make(chan os.Signal, 1)
+	defer signal.Stop(signalChan)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	for {
+		select {
+		case s := <-signalChan:
+			switch s {
+			case syscall.SIGINT | syscall.SIGTERM:
+				cancel()
+				return
+			}
+		case <-ctx.Done():
+			err = ctx.Err()
+			return
+		}
+	}
 }
 
 func migrate(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
@@ -124,7 +137,7 @@ func search(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message
 }
 
 func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka.Message,
-	startTs time.Time, totalCnt *atomic.Uint64, foundCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
+	totalCnt *atomic.Uint64, foundCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
 		return err
@@ -169,7 +182,7 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 				errCnt.Add(1)
 				continue
 			}
-			if startTs.Before(msg.Timestamp) {
+			if cfg.ToTime.Before(msg.Timestamp) {
 				return nil
 			}
 
