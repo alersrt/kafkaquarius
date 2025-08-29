@@ -140,7 +140,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	}
 
 	if cfg.SinceTime.After(cfg.ToTime) {
-		errors.Join(valErrs, fmt.Errorf("cfg: --since-time must be before --to-time"))
+		valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --since-time must be before --to-time"))
 	}
 
 	if valErrs != nil {

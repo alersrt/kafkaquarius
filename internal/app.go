@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/domain"
 	"kafkaquarius/internal/filter"
+	"log/slog"
 	"math"
 	"os"
 	"sync"
@@ -30,8 +32,8 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 
 	var wg sync.WaitGroup
 	for i := 0; i < cfg.ThreadsNumber; i++ {
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			err := consume(ctx, cfg, i, interOp, &totalCnt, &foundCnt, &errCnt)
 			if err != nil {
 				cancel(err)
@@ -97,15 +99,23 @@ func migrate(ctx context.Context, cfg *config.Config, interOp chan *kafka.Messag
 
 func search(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
 	procCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
-	file, err := os.Create(cfg.OutputFile)
-	if err != nil {
-		return err
+
+	var file *os.File
+	var err error
+	if cfg.OutputFile != "" {
+		file, err = os.Create(cfg.OutputFile)
+		if err != nil {
+			return err
+		}
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
 	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
 
 	write := func(msg *kafka.Message) error {
+		if file == nil {
+			return nil
+		}
 		bytes, err := json.Marshal(domain.FromKafka(msg))
 		if err != nil {
 			return err
@@ -151,7 +161,7 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 		"bootstrap.servers":  cfg.SourceBroker,
 		"group.id":           cfg.ConsumerGroup,
 		"client.id":          i,
-		"auto.offset.reset":  kafka.OffsetBeginning.String(),
+		"auto.offset.reset":  "earliest",
 		"enable.auto.commit": false,
 	})
 	if err != nil {
@@ -191,8 +201,10 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 		return err
 	}
 
+	slog.Info(fmt.Sprintf("consumer assign: threadNo: %d, partitions: %v", i, parts))
 	defer func(cons *kafka.Consumer) {
 		_ = cons.Unassign()
+		slog.Info(fmt.Sprintf("consumer unassign: threadNo: %d", i))
 	}(cons)
 
 	for {
@@ -201,6 +213,7 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 			return nil
 		default:
 			msg, err := cons.ReadMessage(time.Minute)
+			totalCnt.Add(1)
 			if err != nil {
 				if err != nil && err.(kafka.Error).IsTimeout() {
 					return nil
@@ -211,8 +224,6 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 			if cfg.ToTime.Before(msg.Timestamp) {
 				return nil
 			}
-
-			totalCnt.Add(1)
 
 			ok, err := filt.Eval(msg)
 			if err != nil {
