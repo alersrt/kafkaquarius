@@ -23,6 +23,11 @@ func Test_calcPart(t *testing.T) {
 		{"", 0, 3, 5, []int{0}},
 		{"", 2, 3, 5, []int{2}},
 		{"", 3, 3, 5, nil},
+		{"", 14, 30, 25, []int{28, 29}},
+		{"", 15, 30, 25, nil},
+		{"", 14, 31, 24, []int{28, 29}},
+		{"", 15, 31, 24, []int{30}},
+		{"", 16, 31, 24, nil},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

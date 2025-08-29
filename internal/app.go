@@ -260,10 +260,14 @@ func calcPart(threadNo int, partsNum int, threadsNum int) []int {
 			return res
 		} else {
 			rem := partsNum - threadNo*div
+			if rem <= 0 {
+				return nil
+			}
 			res := make([]int, rem)
 			for j := 0; j < rem; j++ {
 				res[j] = threadNo*div + j
 			}
+
 			return res
 		}
 	}
