@@ -1,18 +1,25 @@
 package filter
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/overloads"
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/ext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"kafkaquarius/internal/domain"
 )
 
 const (
-	VarKey       = "Key"
-	VarValue     = "Value"
-	VarTimestamp = "Timestamp"
-	VarHeaders   = "Headers"
+	VarKey         = "Key"
+	VarKeyAsText   = "KeyAsText"
+	VarValue       = "Value"
+	VarValueAsText = "ValueAsText"
+	VarTimestamp   = "Timestamp"
+	VarHeaders     = "Headers"
 )
 
 type Filter struct {
@@ -25,6 +32,20 @@ func NewFilter(filter string) (*Filter, error) {
 		cel.Variable(VarValue, cel.AnyType),
 		cel.Variable(VarHeaders, cel.MapType(cel.StringType, cel.AnyType)),
 		cel.Variable(VarTimestamp, cel.TimestampType),
+		cel.Function(overloads.TypeConvertString, cel.Overload(
+			"map_to_string", []*cel.Type{cel.MapType(cel.StringType, cel.AnyType)}, cel.StringType,
+			cel.UnaryBinding(func(value ref.Val) ref.Val {
+				b, _ := json.Marshal(value.Value())
+				return types.String(b)
+			}),
+		)),
+		cel.OptionalTypes(),
+		ext.Regex(),
+		ext.Strings(),
+		ext.Encoders(),
+		ext.Math(),
+		ext.Sets(),
+		ext.Lists(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter: new: %v", err)

@@ -10,7 +10,7 @@ func TestFilter(t *testing.T) {
 	filterContent := `Value.some == 0
 && Headers.key1 in ['value']
 && Headers.size() != 0
-&& Key.kf == 'test_key'
+&& string(Key).matches(".*test_key.*")
 && Timestamp > timestamp('1970-01-01T00:00:00.000Z')
 `
 	testedUnit, err := NewFilter(filterContent)
