@@ -7,11 +7,11 @@ import (
 
 func Test_calcPart(t *testing.T) {
 	tests := []struct {
-		name      string
-		tNo       int
-		partsNum  int
-		threadNum int
-		exp       []int
+		name       string
+		threadNo   int
+		partsNum   int
+		threadsNum int
+		exp        []int
 	}{
 		{"", 0, 5, 3, []int{0, 1}},
 		{"", 1, 5, 3, []int{2, 3}},
@@ -26,7 +26,7 @@ func Test_calcPart(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			act := calcPart(test.tNo, test.partsNum, test.threadNum)
+			act := calcPart(test.threadNo, test.partsNum, test.threadsNum)
 			if !reflect.DeepEqual(test.exp, act) {
 				t.Errorf("exp: %+v, act: %v", test.exp, act)
 			}
