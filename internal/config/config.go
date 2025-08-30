@@ -41,7 +41,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "--source-broker is used if empty")
 	migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "--source-topic is used if empty")
 	migrateSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
-	migrateSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time")
+	migrateSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
 	migrateSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, now by default")
 
 	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
@@ -51,7 +51,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
 	searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
 	searchSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
-	searchSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time")
+	searchSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
 	searchSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, now by default")
 
 	flag.Usage = func() {

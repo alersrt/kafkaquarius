@@ -14,12 +14,10 @@ import (
 )
 
 const (
-	VarKey         = "Key"
-	VarKeyAsText   = "KeyAsText"
-	VarValue       = "Value"
-	VarValueAsText = "ValueAsText"
-	VarTimestamp   = "Timestamp"
-	VarHeaders     = "Headers"
+	VarKey       = "Key"
+	VarValue     = "Value"
+	VarTimestamp = "Timestamp"
+	VarHeaders   = "Headers"
 )
 
 type Filter struct {
