@@ -199,7 +199,7 @@ func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka
 	if err != nil {
 		return err
 	}
-	slog.Info(fmt.Sprintf("consumer assign: threadNo: %d, partitions: %v", i, parts))
+	slog.Info(fmt.Sprintf("consumer assign: threadNo: %d, partitions: %v", i, partsDist))
 
 	defer func(cons *kafka.Consumer) {
 		_ = cons.Unassign()
