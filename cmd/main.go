@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"kafkaquarius/internal"
 	"kafkaquarius/internal/config"
-	"kafkaquarius/pkg/daemon"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+)
+
+const (
+	ExitCodeDone         = 0
+	ExitCodeError        = 1
+	ExitCodeInvalidUsage = 2
 )
 
 func main() {
@@ -18,10 +23,10 @@ func main() {
 	cmd, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%v", err))
-		os.Exit(daemon.ExitCodeInvalidUsage)
+		os.Exit(ExitCodeInvalidUsage)
 	}
 	if cfg == nil {
-		os.Exit(daemon.ExitCodeInvalidUsage)
+		os.Exit(ExitCodeInvalidUsage)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -34,9 +39,9 @@ func main() {
 	}
 	if err != nil {
 		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
-		os.Exit(daemon.ExitCodeError)
+		os.Exit(ExitCodeError)
 	} else {
 		slog.Info(fmt.Sprintf("%s: finish", cmd))
-		os.Exit(daemon.ExitCodeDone)
+		os.Exit(ExitCodeDone)
 	}
 }

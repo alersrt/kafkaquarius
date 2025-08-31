@@ -1,4 +1,4 @@
-package internal
+package consumer
 
 import (
 	"reflect"
@@ -44,7 +44,7 @@ func Test_calcPart(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			act := calcPart(test.threadNo, test.partsNum, test.threadsNum)
+			act := calcParts(test.threadNo, test.partsNum, test.threadsNum)
 			if !reflect.DeepEqual(test.exp, act) {
 				t.Errorf("exp: %+v, act: %v", test.exp, act)
 			}

@@ -4,14 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
+	"kafkaquarius/internal/consumer"
 	"kafkaquarius/internal/domain"
-	"kafkaquarius/internal/filter"
-	"log/slog"
 	"os"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -20,38 +17,89 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
+	consCfg := kafka.ConfigMap{
+		"bootstrap.servers":  cfg.SourceBroker,
+		"group.id":           cfg.ConsumerGroup,
+		"auto.offset.reset":  "earliest",
+		"enable.auto.commit": false,
+	}
+	pCons, err := consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
+	if err != nil {
+		return nil, err
+	}
+	defer pCons.Close()
+
 	startTs := time.Now()
 	var totalCnt atomic.Uint64
 	var foundCnt atomic.Uint64
 	var procCnt atomic.Uint64
 	var errCnt atomic.Uint64
 
-	interOp := make(chan *kafka.Message)
-	defer close(interOp)
-
-	var wg sync.WaitGroup
-	for i := 0; i < cfg.ThreadsNumber; i++ {
-		wg.Add(1)
-		go func() {
-			err := consume(ctx, cfg, i, interOp, &totalCnt, &foundCnt, &errCnt)
-			if err != nil {
-				cancel(err)
-			}
-			wg.Done()
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		cancel(nil)
-	}()
-
-	var err error
 	switch cmd {
 	case config.CmdMigrate:
-		err = migrate(ctx, cfg, interOp, &procCnt, &errCnt)
+		prod, err := kafka.NewProducer(&kafka.ConfigMap{
+			"bootstrap.servers": cfg.TargetBroker,
+		})
+		if err != nil {
+			return nil, err
+		}
+		err = pCons.Do(ctx,
+			func(err error) {
+				errCnt.Add(1)
+			},
+			func(msg *kafka.Message) {
+				msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
+				err := prod.Produce(msg, nil)
+				if err != nil {
+					errCnt.Add(1)
+				} else {
+					procCnt.Add(1)
+				}
+			})
 	case config.CmdSearch:
-		err = search(ctx, cfg, interOp, &procCnt, &errCnt)
+		var file *os.File
+		var err error
+		if cfg.OutputFile != "" {
+			file, err = os.Create(cfg.OutputFile)
+			if err != nil {
+				return nil, err
+			}
+			defer func() {
+				_ = file.Close()
+			}()
+		}
+
+		write := func(msg *kafka.Message) error {
+			if file == nil {
+				return nil
+			}
+			bytes, err := json.Marshal(domain.FromKafka(msg))
+			if err != nil {
+				return err
+			}
+			_, err = file.Write(bytes)
+			if err != nil {
+				return err
+			}
+			_, err = file.WriteString("\n")
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+
+		err = pCons.Do(ctx,
+			func(err error) {
+				errCnt.Add(1)
+			},
+			func(msg *kafka.Message) {
+				err := write(msg)
+				if err != nil {
+					errCnt.Add(1)
+				} else {
+					procCnt.Add(1)
+				}
+			})
 	}
 
 	<-ctx.Done()
@@ -67,197 +115,4 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 		Errors: errCnt.Load(),
 		Time:   time.Since(startTs).Truncate(time.Second),
 	}, err
-}
-
-func migrate(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
-	procCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
-	prod, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": cfg.TargetBroker,
-	})
-	if err != nil {
-		return err
-	}
-	defer prod.Close()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case msg := <-interOp:
-			msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
-			err := prod.Produce(msg, nil)
-			if err != nil {
-				errCnt.Add(1)
-				continue
-			} else {
-				procCnt.Add(1)
-			}
-		}
-	}
-}
-
-func search(ctx context.Context, cfg *config.Config, interOp chan *kafka.Message,
-	procCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
-
-	var file *os.File
-	var err error
-	if cfg.OutputFile != "" {
-		file, err = os.Create(cfg.OutputFile)
-		if err != nil {
-			return err
-		}
-		defer func(file *os.File) {
-			_ = file.Close()
-		}(file)
-	}
-
-	write := func(msg *kafka.Message) error {
-		if file == nil {
-			return nil
-		}
-		bytes, err := json.Marshal(domain.FromKafka(msg))
-		if err != nil {
-			return err
-		}
-		_, err = file.Write(bytes)
-		if err != nil {
-			return err
-		}
-		_, err = file.WriteString("\n")
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case msg := <-interOp:
-			err := write(msg)
-			if err != nil {
-				errCnt.Add(1)
-			} else {
-				procCnt.Add(1)
-			}
-		}
-	}
-}
-
-func consume(ctx context.Context, cfg *config.Config, i int, interOp chan *kafka.Message,
-	totalCnt *atomic.Uint64, foundCnt *atomic.Uint64, errCnt *atomic.Uint64) error {
-	filtCont, err := os.ReadFile(cfg.FilterFile)
-	if err != nil {
-		return err
-	}
-	filt, err := filter.NewFilter(string(filtCont))
-	if err != nil {
-		return err
-	}
-
-	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":  cfg.SourceBroker,
-		"group.id":           cfg.ConsumerGroup,
-		"client.id":          i,
-		"auto.offset.reset":  "earliest",
-		"enable.auto.commit": false,
-	})
-	if err != nil {
-		return err
-	}
-	defer func(cons *kafka.Consumer) {
-		_ = cons.Close()
-	}(cons)
-
-	timeoutMs := 5 * time.Minute.Milliseconds()
-
-	md, err := cons.GetMetadata(&cfg.SourceTopic, false, int(timeoutMs))
-	if err != nil {
-		return err
-	}
-
-	partsDist := calcPart(i, len(md.Topics[cfg.SourceTopic].Partitions), cfg.ThreadsNumber)
-	if partsDist == nil {
-		return nil
-	}
-
-	var parts []kafka.TopicPartition
-	for _, p := range partsDist {
-		parts = append(parts, kafka.TopicPartition{
-			Topic:     &cfg.SourceTopic,
-			Partition: int32(p),
-			Offset:    kafka.Offset(cfg.SinceTime.UnixMilli()),
-		})
-	}
-
-	parts, err = cons.OffsetsForTimes(parts, int(timeoutMs))
-	if err != nil {
-		return err
-	}
-	err = cons.Assign(parts)
-	if err != nil {
-		return err
-	}
-	slog.Info(fmt.Sprintf("consumer assign: threadNo: %d, partitions: %v", i, partsDist))
-
-	defer func(cons *kafka.Consumer) {
-		_ = cons.Unassign()
-		slog.Info(fmt.Sprintf("consumer unassign: threadNo: %d", i))
-	}(cons)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			msg, err := cons.ReadMessage(time.Minute)
-			totalCnt.Add(1)
-			if err != nil {
-				if err != nil && err.(kafka.Error).IsTimeout() {
-					return nil
-				}
-				errCnt.Add(1)
-				continue
-			}
-			if cfg.ToTime.Before(msg.Timestamp) {
-				return nil
-			}
-
-			ok, err := filt.Eval(msg)
-			if err != nil {
-				continue
-			}
-
-			if ok {
-				foundCnt.Add(1)
-				interOp <- msg
-			}
-		}
-	}
-}
-
-// calcPart returns list with partition numbers. Numeration is started from zero.
-func calcPart(threadNo int, partsNum int, threadsNum int) []int {
-	if threadNo >= partsNum || threadNo >= threadsNum || threadNo < 0 {
-		return nil
-	}
-	if threadsNum >= partsNum {
-		return []int{threadNo}
-	}
-	// div is always >= 1 due to previous condition
-	div := partsNum / threadsNum
-	if threadsNum*div+threadNo < partsNum {
-		res := make([]int, div+1)
-		for i := 0; i <= div; i++ {
-			res[i] = threadNo + threadsNum*i
-		}
-		return res
-	} else {
-		res := make([]int, div)
-		for i := 0; i < div; i++ {
-			res[i] = threadNo + threadsNum*i
-		}
-		return res
-	}
 }
