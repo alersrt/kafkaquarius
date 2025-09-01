@@ -107,17 +107,15 @@ func calcParts(threadNo int, partsNum int, threadsNum int) []int {
 	}
 	// div is always >= 1 due to previous condition
 	div := partsNum / threadsNum
+	var resLen int
 	if threadsNum*div+threadNo < partsNum {
-		res := make([]int, div+1)
-		for i := 0; i <= div; i++ {
-			res[i] = threadNo + threadsNum*i
-		}
-		return res
+		resLen = div + 1
 	} else {
-		res := make([]int, div)
-		for i := 0; i < div; i++ {
-			res[i] = threadNo + threadsNum*i
-		}
-		return res
+		resLen = div
 	}
+	res := make([]int, resLen)
+	for i := 0; i < resLen; i++ {
+		res[i] = threadNo + threadsNum*i
+	}
+	return res
 }

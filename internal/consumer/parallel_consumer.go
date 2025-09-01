@@ -54,10 +54,10 @@ func (p *ParallelConsumer) Close() {
 func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), procs ...func(*kafka.Message)) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	var wg sync.WaitGroup
-	for _, w := range p.consumers {
+	for _, c := range p.consumers {
 		wg.Add(1)
 		go func() {
-			err := w.Do(ctx, p.interOp, p.errChan)
+			err := c.Do(ctx, p.interOp, p.errChan)
 			if err != nil {
 				cancel(err)
 			}

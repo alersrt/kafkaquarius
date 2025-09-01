@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/consumer"
@@ -45,11 +46,26 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	var procCnt atomic.Uint64
 	var errCnt atomic.Uint64
 
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				fmt.Printf("Duration:\t%s\r", time.Since(startTs).Truncate(time.Second))
+			}
+		}
+	}()
+
 	switch cmd {
 	case config.CmdMigrate:
-		prod, err := kafka.NewProducer(&kafka.ConfigMap{
+		var prod *kafka.Producer
+		prod, err = kafka.NewProducer(&kafka.ConfigMap{
 			"bootstrap.servers": cfg.TargetBroker,
 		})
+		defer prod.Close()
 		if err != nil {
 			return nil, err
 		}
@@ -70,10 +86,10 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 						procCnt.Add(1)
 					}
 				}
-			})
+			},
+		)
 	case config.CmdSearch:
 		var file *os.File
-		var err error
 		if cfg.OutputFile != "" {
 			file, err = os.Create(cfg.OutputFile)
 			if err != nil {
@@ -119,10 +135,9 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 						procCnt.Add(1)
 					}
 				}
-			})
+			},
+		)
 	}
-
-	<-ctx.Done()
 
 	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
 		err = errors.Join(err, cause)
