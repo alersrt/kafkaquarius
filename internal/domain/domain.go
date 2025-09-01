@@ -26,10 +26,11 @@ type Stats struct {
 	Errors  uint64
 	Time    time.Duration
 	Threads int32
+	Offsets map[int32]int64
 }
 
 func (s Stats) FormattedString() string {
-	sentence := `Total:	{{ .Total }} | Found:	{{ .Found }} | Proc:	{{ .Proc }} | Errors:	{{ .Errors }} | Time:	{{ .Time }} | Threads: {{ .Threads }}`
+	sentence := `Duration:	{{ .Time }} | Total:	{{ .Total }} | Found:	{{ .Found }} | Proc:	{{ .Proc }} | Errors:	{{ .Errors }} | Threads:	{{ .Threads }} | Offsets:	{{ .Offsets }}`
 	templ := template.Must(template.New("stats").Parse(sentence))
 	var b strings.Builder
 	_ = templ.Execute(&b, s)

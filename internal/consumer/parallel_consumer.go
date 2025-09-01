@@ -11,7 +11,7 @@ import (
 )
 
 type Consumer interface {
-	Do(ctx context.Context, isEndless bool, errProc func(kafka.Error), handles ...func(*kafka.Message)) error
+	Do(ctx context.Context, isEndless bool, handles ...func(kafka.Event)) error
 	Close()
 }
 
@@ -51,6 +51,8 @@ func (p *ParallelConsumer) Threads() int32 {
 }
 
 func (p *ParallelConsumer) Offsets() map[int32]int64 {
+	p.offsetMtx.Lock()
+	defer p.offsetMtx.Unlock()
 	return maps.Clone(p.offsets)
 }
 
@@ -69,17 +71,15 @@ func (p *ParallelConsumer) Close() {
 func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), procs ...func(*kafka.Message)) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 
-	interOp := make(chan *kafka.Message)
+	interOp := make(chan kafka.Event)
 	defer close(interOp)
-	errChan := make(chan error)
-	defer close(errChan)
 
 	var wg sync.WaitGroup
 	for _, c := range p.consumers {
 		wg.Add(1)
 		p.activeCons.Add(1)
 		go func() {
-			err := c.Do(ctx, p.isEndless, func(err kafka.Error) { errChan <- err }, func(msg *kafka.Message) { interOp <- msg })
+			err := c.Do(ctx, p.isEndless, func(ev kafka.Event) { interOp <- ev })
 			if err != nil {
 				cancel(err)
 			}
@@ -98,13 +98,17 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 			select {
 			case <-ctx.Done():
 				return
-			case msg := <-interOp:
-				p.StoreOffset(msg.TopicPartition.Partition, int64(msg.TopicPartition.Offset))
-				for _, proc := range procs {
-					proc(msg)
+			case ev := <-interOp:
+				switch ev.(type) {
+				case kafka.Error:
+					errProc(ev.(kafka.Error))
+				case *kafka.Message:
+					msg := ev.(*kafka.Message)
+					p.StoreOffset(msg.TopicPartition.Partition, int64(msg.TopicPartition.Offset))
+					for _, proc := range procs {
+						proc(msg)
+					}
 				}
-			case err := <-errChan:
-				errProc(err)
 			}
 		}
 	}()

@@ -68,8 +68,9 @@ func (a *App) Stats() domain.Stats {
 		Found:   a.stats.foundCnt.Load(),
 		Proc:    a.stats.procCnt.Load(),
 		Errors:  a.stats.errCnt.Load(),
-		Time:    time.Since(a.stats.startTs).Truncate(time.Second),
+		Time:    time.Since(a.stats.startTs).Truncate(time.Millisecond),
 		Threads: a.pCons.Threads(),
+		Offsets: a.pCons.Offsets(),
 	}
 }
 
@@ -90,6 +91,7 @@ func (a *App) Execute(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
 		err = errors.Join(err, cause)
 	}
+
 	return err
 }
 
@@ -159,13 +161,13 @@ func (a *App) search(ctx context.Context) error {
 	return a.pCons.Do(
 		ctx,
 		func(err error) {
+			a.stats.totalCnt.Add(1)
 			a.stats.errCnt.Add(1)
 		},
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
-		},
-		func(msg *kafka.Message) {
 			if ok, _ := a.filt.Eval(msg); ok {
+				a.stats.foundCnt.Add(1)
 				err := write(msg)
 				if err != nil {
 					a.stats.errCnt.Add(1)

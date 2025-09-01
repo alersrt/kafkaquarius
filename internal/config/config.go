@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"time"
 )
@@ -11,6 +12,10 @@ import (
 const (
 	CmdMigrate = "migrate"
 	CmdSearch  = "search"
+)
+
+const (
+	MaxSec = math.MaxInt64 - (1969*365+1969/4-1969/100+1969/400)*24*60*60
 )
 
 type Config struct {
@@ -42,7 +47,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "--source-topic is used if empty")
 	migrateSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
 	migrateSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
-	migrateSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, now by default")
+	migrateSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, infinity by default")
 
 	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
 	searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
@@ -52,7 +57,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
 	searchSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
 	searchSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
-	searchSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, now by default")
+	searchSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, infinity by default")
 
 	flag.Usage = func() {
 		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch)
@@ -134,7 +139,7 @@ func NewConfig(args []string) (string, *Config, error) {
 		cfg.SinceTime = time.Unix(sinceTime, 0)
 	}
 	if toTime == 0 {
-		cfg.ToTime = time.Now()
+		cfg.ToTime = time.Unix(MaxSec, 0)
 	} else {
 		cfg.ToTime = time.Unix(toTime, 0)
 	}

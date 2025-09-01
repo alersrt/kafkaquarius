@@ -42,7 +42,7 @@ func main() {
 
 	slog.Info(fmt.Sprintf("%s: start", cmd))
 
-	go Print(ctx, app)
+	go print(ctx, app)
 
 	err = app.Execute(ctx)
 	fmt.Printf("\r%s\n", app.Stats().FormattedString())
@@ -56,8 +56,8 @@ func main() {
 	}
 }
 
-func Print(ctx context.Context, app *internal.App) {
-	ticker := time.NewTicker(time.Second)
+func print(ctx context.Context, app *internal.App) {
+	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
 	for {
