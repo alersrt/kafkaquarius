@@ -33,10 +33,7 @@ func main() {
 	defer cancel()
 
 	slog.Info(fmt.Sprintf("%s: start", cmd))
-	stats, err := internal.Execute(ctx, cmd, cfg)
-	if stats != nil {
-		stats.Print()
-	}
+	_, err = internal.Execute(ctx, cmd, cfg)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
 		os.Exit(ExitCodeError)

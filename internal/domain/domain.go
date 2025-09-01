@@ -2,7 +2,7 @@ package domain
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"os"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -27,13 +27,10 @@ type Stats struct {
 	Time   time.Duration
 }
 
-func (s *Stats) Print() {
-	sentence := `Total:	{{ .Total }}
-Found:	{{ .Found }}
-Proc:	{{ .Proc }}
-Errors:	{{ .Errors }}
-Time:	{{ .Time }}
-`
+func (s *Stats) FormattedString() string {
+	sentence := `Total:	{{ .Total }} | Found:	{{ .Found }} | Proc:	{{ .Proc }} | Errors:	{{ .Errors }} | Time:	{{ .Time }}`
 	templ := template.Must(template.New("stats").Parse(sentence))
-	_ = templ.Execute(os.Stdout, s)
+	var b strings.Builder
+	_ = templ.Execute(&b, s)
+	return b.String()
 }

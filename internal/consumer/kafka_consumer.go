@@ -67,7 +67,7 @@ func (c *KafkaConsumer) Close() {
 	_ = c.cons.Close()
 }
 
-func (c *KafkaConsumer) Do(ctx context.Context, target chan *kafka.Message, errChan chan error) error {
+func (c *KafkaConsumer) Do(ctx context.Context, isEndless bool, errProc func(kafka.Error), handles ...func(*kafka.Message)) error {
 	err := c.cons.Assign(c.parts)
 	if err != nil {
 		return err
@@ -78,21 +78,29 @@ func (c *KafkaConsumer) Do(ctx context.Context, target chan *kafka.Message, errC
 		case <-ctx.Done():
 			return nil
 		default:
-			msg, err := c.cons.ReadMessage(time.Minute)
-			if err != nil {
-				if err != nil && err.(kafka.Error).IsTimeout() {
+			ev := c.cons.Poll(int(time.Minute.Milliseconds()))
+			switch ev.(type) {
+			case *kafka.Message:
+				msg := ev.(*kafka.Message)
+				if c.toTime.Before(msg.Timestamp) {
 					return nil
 				}
-				if errChan != nil {
-					errChan <- err
+				for _, handle := range handles {
+					handle(msg)
 				}
-				continue
+			case kafka.Error:
+				err := ev.(kafka.Error)
+				if !isEndless && err.IsTimeout() {
+					return nil
+				}
+				if errProc != nil {
+					errProc(err)
+				}
+			case kafka.PartitionEOF:
+				if !isEndless {
+					return nil
+				}
 			}
-			if c.toTime.Before(msg.Timestamp) {
-				return nil
-			}
-
-			target <- msg
 		}
 	}
 }

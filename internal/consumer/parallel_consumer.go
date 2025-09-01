@@ -4,23 +4,24 @@ import (
 	"context"
 	"errors"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"maps"
 	"sync"
 	"time"
 )
 
 type Consumer interface {
-	Do(ctx context.Context, target chan *kafka.Message, errChan chan error) error
+	Do(ctx context.Context, isEndless bool, errProc func(kafka.Error), handles ...func(*kafka.Message)) error
 	Close()
 }
 
 type ParallelConsumer struct {
 	threadsNum int
+	isEndless  bool
 	sinceTime  time.Time
 	toTime     time.Time
 	offsets    map[int32]int64
+	offsetMtx  sync.Mutex
 	consumers  []Consumer
-	interOp    chan *kafka.Message
-	errChan    chan error
 	topic      string
 }
 
@@ -38,11 +39,19 @@ func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, 
 		sinceTime:  sinceTime,
 		toTime:     toTime,
 		offsets:    make(map[int32]int64),
-		interOp:    make(chan *kafka.Message),
-		errChan:    make(chan error),
 		consumers:  workers,
 		topic:      topic,
 	}, nil
+}
+
+func (p *ParallelConsumer) Offsets() map[int32]int64 {
+	return maps.Clone(p.offsets)
+}
+
+func (p *ParallelConsumer) StoreOffset(partition int32, offset int64) {
+	p.offsetMtx.Lock()
+	defer p.offsetMtx.Unlock()
+	p.offsets[partition] = offset
 }
 
 func (p *ParallelConsumer) Close() {
@@ -53,11 +62,17 @@ func (p *ParallelConsumer) Close() {
 
 func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), procs ...func(*kafka.Message)) error {
 	ctx, cancel := context.WithCancelCause(ctx)
+
+	interOp := make(chan *kafka.Message)
+	defer close(interOp)
+	errChan := make(chan error)
+	defer close(errChan)
+
 	var wg sync.WaitGroup
 	for _, c := range p.consumers {
 		wg.Add(1)
 		go func() {
-			err := c.Do(ctx, p.interOp, p.errChan)
+			err := c.Do(ctx, p.isEndless, func(err kafka.Error) { errChan <- err }, func(msg *kafka.Message) { interOp <- msg })
 			if err != nil {
 				cancel(err)
 			}
@@ -70,21 +85,26 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 		cancel(nil)
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
-				return cause
-			} else {
-				return nil
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-interOp:
+				p.StoreOffset(msg.TopicPartition.Partition, int64(msg.TopicPartition.Offset))
+				for _, proc := range procs {
+					proc(msg)
+				}
+			case err := <-errChan:
+				errProc(err)
 			}
-		case msg := <-p.interOp:
-			p.offsets[msg.TopicPartition.Partition] = int64(msg.TopicPartition.Offset)
-			for _, proc := range procs {
-				proc(msg)
-			}
-		case err := <-p.errChan:
-			errProc(err)
 		}
+	}()
+
+	<-ctx.Done()
+	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
+		return cause
+	} else {
+		return nil
 	}
 }

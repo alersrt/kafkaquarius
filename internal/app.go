@@ -20,10 +20,11 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	defer cancel(nil)
 
 	consCfg := kafka.ConfigMap{
-		"bootstrap.servers":  cfg.SourceBroker,
-		"group.id":           cfg.ConsumerGroup,
-		"auto.offset.reset":  "earliest",
-		"enable.auto.commit": false,
+		"bootstrap.servers":    cfg.SourceBroker,
+		"group.id":             cfg.ConsumerGroup,
+		"auto.offset.reset":    "earliest",
+		"enable.auto.commit":   false,
+		"enable.partition.eof": true,
 	}
 	pCons, err := consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
 	if err != nil {
@@ -49,12 +50,19 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+		defer fmt.Printf("\n")
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				fmt.Printf("Duration:\t%s\r", time.Since(startTs).Truncate(time.Second))
+				fmt.Printf("\r%s", (&domain.Stats{
+					Total:  totalCnt.Load(),
+					Found:  foundCnt.Load(),
+					Proc:   procCnt.Load(),
+					Errors: errCnt.Load(),
+					Time:   time.Since(startTs).Truncate(time.Second),
+				}).FormattedString())
 			}
 		}
 	}()
