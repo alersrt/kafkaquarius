@@ -81,85 +81,97 @@ func (a *App) Execute(ctx context.Context) error {
 	var err error
 	switch a.cmd {
 	case config.CmdMigrate:
-		prod, err := kafka.NewProducer(&kafka.ConfigMap{
-			"bootstrap.servers": a.cfg.TargetBroker,
-		})
-		defer prod.Close()
-		if err != nil {
-			return err
-		}
-		err = a.pCons.Do(ctx,
-			func(err error) {
-				a.stats.errCnt.Add(1)
-			},
-			func(msg *kafka.Message) {
-				a.stats.totalCnt.Add(1)
-			},
-			func(msg *kafka.Message) {
-				if ok, _ := a.filt.Eval(msg); ok {
-					msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
-					err := prod.Produce(msg, nil)
-					if err != nil {
-						a.stats.errCnt.Add(1)
-					} else {
-						a.stats.procCnt.Add(1)
-					}
-				}
-			},
-		)
+		err = a.migrate(ctx)
 	case config.CmdSearch:
-		var file *os.File
-		if a.cfg.OutputFile != "" {
-			file, err = os.Create(a.cfg.OutputFile)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = file.Close()
-			}()
-		}
-
-		write := func(msg *kafka.Message) error {
-			if file == nil {
-				return nil
-			}
-			bytes, err := json.Marshal(domain.FromKafka(msg))
-			if err != nil {
-				return err
-			}
-			_, err = file.Write(bytes)
-			if err != nil {
-				return err
-			}
-			_, err = file.WriteString("\n")
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-
-		err = a.pCons.Do(ctx,
-			func(err error) {
-				a.stats.errCnt.Add(1)
-			},
-			func(msg *kafka.Message) {
-				a.stats.totalCnt.Add(1)
-			},
-			func(msg *kafka.Message) {
-				if ok, _ := a.filt.Eval(msg); ok {
-					err := write(msg)
-					if err != nil {
-						a.stats.errCnt.Add(1)
-					} else {
-						a.stats.procCnt.Add(1)
-					}
-				}
-			},
-		)
+		err = a.search(ctx)
 	}
 
 	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
 		err = errors.Join(err, cause)
 	}
 	return err
+}
+
+func (a *App) migrate(ctx context.Context) error {
+	prod, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers": a.cfg.TargetBroker,
+	})
+	defer prod.Close()
+	if err != nil {
+		return err
+	}
+
+	return a.pCons.Do(
+		ctx,
+		func(err error) {
+			a.stats.errCnt.Add(1)
+		},
+		func(msg *kafka.Message) {
+			a.stats.totalCnt.Add(1)
+		},
+		func(msg *kafka.Message) {
+			if ok, _ := a.filt.Eval(msg); ok {
+				msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
+				err := prod.Produce(msg, nil)
+				if err != nil {
+					a.stats.errCnt.Add(1)
+				} else {
+					a.stats.procCnt.Add(1)
+				}
+			}
+		},
+	)
+}
+
+func (a *App) search(ctx context.Context) error {
+	var file *os.File
+	var err error
+	if a.cfg.OutputFile != "" {
+		file, err = os.Create(a.cfg.OutputFile)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = file.Close()
+		}()
+	}
+
+	write := func(msg *kafka.Message) error {
+		if file == nil {
+			return nil
+		}
+		bytes, err := json.Marshal(domain.FromKafka(msg))
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(bytes)
+		if err != nil {
+			return err
+		}
+		_, err = file.WriteString("\n")
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return a.pCons.Do(
+		ctx,
+		func(err error) {
+			a.stats.errCnt.Add(1)
+		},
+		func(msg *kafka.Message) {
+			a.stats.totalCnt.Add(1)
+		},
+		func(msg *kafka.Message) {
+			if ok, _ := a.filt.Eval(msg); ok {
+				err := write(msg)
+				if err != nil {
+					a.stats.errCnt.Add(1)
+				} else {
+					a.stats.procCnt.Add(1)
+				}
+			}
+		},
+	)
 }
