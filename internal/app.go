@@ -8,6 +8,7 @@ import (
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/consumer"
 	"kafkaquarius/internal/domain"
+	"kafkaquarius/internal/filter"
 	"os"
 	"sync/atomic"
 	"time"
@@ -29,6 +30,15 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	}
 	defer pCons.Close()
 
+	filtCont, err := os.ReadFile(cfg.FilterFile)
+	if err != nil {
+		return nil, err
+	}
+	filt, err := filter.NewFilter(string(filtCont))
+	if err != nil {
+		return nil, err
+	}
+
 	startTs := time.Now()
 	var totalCnt atomic.Uint64
 	var foundCnt atomic.Uint64
@@ -48,12 +58,17 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 				errCnt.Add(1)
 			},
 			func(msg *kafka.Message) {
-				msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
-				err := prod.Produce(msg, nil)
-				if err != nil {
-					errCnt.Add(1)
-				} else {
-					procCnt.Add(1)
+				totalCnt.Add(1)
+			},
+			func(msg *kafka.Message) {
+				if ok, _ := filt.Eval(msg); ok {
+					msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
+					err := prod.Produce(msg, nil)
+					if err != nil {
+						errCnt.Add(1)
+					} else {
+						procCnt.Add(1)
+					}
 				}
 			})
 	case config.CmdSearch:
@@ -93,11 +108,16 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 				errCnt.Add(1)
 			},
 			func(msg *kafka.Message) {
-				err := write(msg)
-				if err != nil {
-					errCnt.Add(1)
-				} else {
-					procCnt.Add(1)
+				totalCnt.Add(1)
+			},
+			func(msg *kafka.Message) {
+				if ok, _ := filt.Eval(msg); ok {
+					err := write(msg)
+					if err != nil {
+						errCnt.Add(1)
+					} else {
+						procCnt.Add(1)
+					}
 				}
 			})
 	}

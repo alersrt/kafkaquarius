@@ -16,7 +16,7 @@ type KafkaConsumer struct {
 	parts     []kafka.TopicPartition
 }
 
-func NewKafkaConsumer(topic string, threadNo int, sinceTime time.Time, toTime time.Time, configMap kafka.ConfigMap) (*KafkaConsumer, error) {
+func NewKafkaConsumer(topic string, threadNo int, threadsNum int, sinceTime time.Time, toTime time.Time, configMap kafka.ConfigMap) (*KafkaConsumer, error) {
 	err := configMap.SetKey("client.id", threadNo)
 	if err != nil {
 		return nil, err
@@ -33,9 +33,9 @@ func NewKafkaConsumer(topic string, threadNo int, sinceTime time.Time, toTime ti
 		return nil, err
 	}
 
-	partsDist := calcParts(threadNo, len(md.Topics[topic].Partitions), threadNo)
+	partsDist := calcParts(threadNo, len(md.Topics[topic].Partitions), threadsNum)
 	if partsDist == nil {
-		return nil, fmt.Errorf("KafkaConsumer: no partitions")
+		return nil, fmt.Errorf("kafka consumer: no partitions")
 	}
 
 	var parts []kafka.TopicPartition

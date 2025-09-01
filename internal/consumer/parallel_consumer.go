@@ -8,10 +8,6 @@ import (
 	"time"
 )
 
-type ConsError struct {
-	Err error
-}
-
 type Consumer interface {
 	Do(ctx context.Context, target chan *kafka.Message, errChan chan error) error
 	Close()
@@ -32,7 +28,7 @@ func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, 
 	workers := make([]Consumer, threadsNum)
 	for i := 0; i < threadsNum; i++ {
 		var err error
-		workers[i], err = NewKafkaConsumer(topic, i, sinceTime, toTime, kafkaCfg)
+		workers[i], err = NewKafkaConsumer(topic, i, threadsNum, sinceTime, toTime, kafkaCfg)
 		if err != nil {
 			return nil, err
 		}
