@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/consumer"
@@ -15,10 +14,21 @@ import (
 	"time"
 )
 
-func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats, error) {
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
+type App struct {
+	cmd   string
+	pCons *consumer.ParallelConsumer
+	filt  *filter.Filter
+	cfg   *config.Config
+	stats struct {
+		startTs  time.Time
+		totalCnt atomic.Uint64
+		foundCnt atomic.Uint64
+		procCnt  atomic.Uint64
+		errCnt   atomic.Uint64
+	}
+}
 
+func NewApp(cmd string, cfg *config.Config) (*App, error) {
 	consCfg := kafka.ConfigMap{
 		"bootstrap.servers":    cfg.SourceBroker,
 		"group.id":             cfg.ConsumerGroup,
@@ -30,7 +40,6 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	if err != nil {
 		return nil, err
 	}
-	defer pCons.Close()
 
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
@@ -41,67 +50,69 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 		return nil, err
 	}
 
-	startTs := time.Now()
-	var totalCnt atomic.Uint64
-	var foundCnt atomic.Uint64
-	var procCnt atomic.Uint64
-	var errCnt atomic.Uint64
+	return &App{
+		cmd:   cmd,
+		pCons: pCons,
+		filt:  filt,
+		cfg:   cfg,
+	}, nil
+}
 
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		defer fmt.Printf("\n")
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				fmt.Printf("\r%s", (&domain.Stats{
-					Total:  totalCnt.Load(),
-					Found:  foundCnt.Load(),
-					Proc:   procCnt.Load(),
-					Errors: errCnt.Load(),
-					Time:   time.Since(startTs).Truncate(time.Second),
-				}).FormattedString())
-			}
-		}
-	}()
+func (a *App) Close() {
+	a.pCons.Close()
+}
 
-	switch cmd {
+func (a *App) Stats() domain.Stats {
+	return domain.Stats{
+		Total:  a.stats.totalCnt.Load(),
+		Found:  a.stats.foundCnt.Load(),
+		Proc:   a.stats.procCnt.Load(),
+		Errors: a.stats.errCnt.Load(),
+		Time:   time.Since(a.stats.startTs).Truncate(time.Second),
+	}
+}
+
+func (a *App) Execute(ctx context.Context) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	a.stats.startTs = time.Now()
+
+	var err error
+	switch a.cmd {
 	case config.CmdMigrate:
-		var prod *kafka.Producer
-		prod, err = kafka.NewProducer(&kafka.ConfigMap{
-			"bootstrap.servers": cfg.TargetBroker,
+		prod, err := kafka.NewProducer(&kafka.ConfigMap{
+			"bootstrap.servers": a.cfg.TargetBroker,
 		})
 		defer prod.Close()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		err = pCons.Do(ctx,
+		err = a.pCons.Do(ctx,
 			func(err error) {
-				errCnt.Add(1)
+				a.stats.errCnt.Add(1)
 			},
 			func(msg *kafka.Message) {
-				totalCnt.Add(1)
+				a.stats.totalCnt.Add(1)
 			},
 			func(msg *kafka.Message) {
-				if ok, _ := filt.Eval(msg); ok {
-					msg.TopicPartition = kafka.TopicPartition{Topic: &cfg.TargetTopic, Partition: kafka.PartitionAny}
+				if ok, _ := a.filt.Eval(msg); ok {
+					msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
 					err := prod.Produce(msg, nil)
 					if err != nil {
-						errCnt.Add(1)
+						a.stats.errCnt.Add(1)
 					} else {
-						procCnt.Add(1)
+						a.stats.procCnt.Add(1)
 					}
 				}
 			},
 		)
 	case config.CmdSearch:
 		var file *os.File
-		if cfg.OutputFile != "" {
-			file, err = os.Create(cfg.OutputFile)
+		if a.cfg.OutputFile != "" {
+			file, err = os.Create(a.cfg.OutputFile)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			defer func() {
 				_ = file.Close()
@@ -127,20 +138,20 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 			return nil
 		}
 
-		err = pCons.Do(ctx,
+		err = a.pCons.Do(ctx,
 			func(err error) {
-				errCnt.Add(1)
+				a.stats.errCnt.Add(1)
 			},
 			func(msg *kafka.Message) {
-				totalCnt.Add(1)
+				a.stats.totalCnt.Add(1)
 			},
 			func(msg *kafka.Message) {
-				if ok, _ := filt.Eval(msg); ok {
+				if ok, _ := a.filt.Eval(msg); ok {
 					err := write(msg)
 					if err != nil {
-						errCnt.Add(1)
+						a.stats.errCnt.Add(1)
 					} else {
-						procCnt.Add(1)
+						a.stats.procCnt.Add(1)
 					}
 				}
 			},
@@ -150,12 +161,5 @@ func Execute(ctx context.Context, cmd string, cfg *config.Config) (*domain.Stats
 	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
 		err = errors.Join(err, cause)
 	}
-
-	return &domain.Stats{
-		Total:  totalCnt.Load(),
-		Found:  foundCnt.Load(),
-		Proc:   procCnt.Load(),
-		Errors: errCnt.Load(),
-		Time:   time.Since(startTs).Truncate(time.Second),
-	}, err
+	return err
 }

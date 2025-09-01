@@ -27,7 +27,7 @@ type Stats struct {
 	Time   time.Duration
 }
 
-func (s *Stats) FormattedString() string {
+func (s Stats) FormattedString() string {
 	sentence := `Total:	{{ .Total }} | Found:	{{ .Found }} | Proc:	{{ .Proc }} | Errors:	{{ .Errors }} | Time:	{{ .Time }}`
 	templ := template.Must(template.New("stats").Parse(sentence))
 	var b strings.Builder

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 const (
@@ -32,13 +33,39 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	app, err := internal.NewApp(cmd, cfg)
+	if err != nil {
+		slog.Error(fmt.Sprintf("%v", err))
+		os.Exit(ExitCodeError)
+	}
+	defer app.Close()
+
 	slog.Info(fmt.Sprintf("%s: start", cmd))
-	_, err = internal.Execute(ctx, cmd, cfg)
+
+	go Print(ctx, app)
+
+	err = app.Execute(ctx)
+	fmt.Printf("\r%s\n", app.Stats().FormattedString())
+
 	if err != nil {
 		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
 		os.Exit(ExitCodeError)
 	} else {
 		slog.Info(fmt.Sprintf("%s: finish", cmd))
 		os.Exit(ExitCodeDone)
+	}
+}
+
+func Print(ctx context.Context, app *internal.App) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			fmt.Printf("\r%s", app.Stats().FormattedString())
+		}
 	}
 }
