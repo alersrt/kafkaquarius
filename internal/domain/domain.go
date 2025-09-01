@@ -20,15 +20,16 @@ type Message struct {
 }
 
 type Stats struct {
-	Total  uint64
-	Found  uint64
-	Proc   uint64
-	Errors uint64
-	Time   time.Duration
+	Total   uint64
+	Found   uint64
+	Proc    uint64
+	Errors  uint64
+	Time    time.Duration
+	Threads int32
 }
 
 func (s Stats) FormattedString() string {
-	sentence := `Total:	{{ .Total }} | Found:	{{ .Found }} | Proc:	{{ .Proc }} | Errors:	{{ .Errors }} | Time:	{{ .Time }}`
+	sentence := `Total:	{{ .Total }} | Found:	{{ .Found }} | Proc:	{{ .Proc }} | Errors:	{{ .Errors }} | Time:	{{ .Time }} | Threads: {{ .Threads }}`
 	templ := template.Must(template.New("stats").Parse(sentence))
 	var b strings.Builder
 	_ = templ.Execute(&b, s)

@@ -6,6 +6,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"maps"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,6 +24,7 @@ type ParallelConsumer struct {
 	offsetMtx  sync.Mutex
 	consumers  []Consumer
 	topic      string
+	activeCons atomic.Int32
 }
 
 func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, topic string, kafkaCfg kafka.ConfigMap) (*ParallelConsumer, error) {
@@ -42,6 +44,10 @@ func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, 
 		consumers:  workers,
 		topic:      topic,
 	}, nil
+}
+
+func (p *ParallelConsumer) Threads() int32 {
+	return p.activeCons.Load()
 }
 
 func (p *ParallelConsumer) Offsets() map[int32]int64 {
@@ -71,12 +77,14 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 	var wg sync.WaitGroup
 	for _, c := range p.consumers {
 		wg.Add(1)
+		p.activeCons.Add(1)
 		go func() {
 			err := c.Do(ctx, p.isEndless, func(err kafka.Error) { errChan <- err }, func(msg *kafka.Message) { interOp <- msg })
 			if err != nil {
 				cancel(err)
 			}
 			wg.Done()
+			p.activeCons.Add(-1)
 		}()
 	}
 

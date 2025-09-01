@@ -64,11 +64,12 @@ func (a *App) Close() {
 
 func (a *App) Stats() domain.Stats {
 	return domain.Stats{
-		Total:  a.stats.totalCnt.Load(),
-		Found:  a.stats.foundCnt.Load(),
-		Proc:   a.stats.procCnt.Load(),
-		Errors: a.stats.errCnt.Load(),
-		Time:   time.Since(a.stats.startTs).Truncate(time.Second),
+		Total:   a.stats.totalCnt.Load(),
+		Found:   a.stats.foundCnt.Load(),
+		Proc:    a.stats.procCnt.Load(),
+		Errors:  a.stats.errCnt.Load(),
+		Time:    time.Since(a.stats.startTs).Truncate(time.Second),
+		Threads: a.pCons.Threads(),
 	}
 }
 
