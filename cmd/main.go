@@ -57,7 +57,7 @@ func main() {
 }
 
 func print(ctx context.Context, app *internal.App) {
-	ticker := time.NewTicker(time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {

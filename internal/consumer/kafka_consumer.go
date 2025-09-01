@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"sync"
 	"time"
 )
 
 type KafkaConsumer struct {
-	topic     string
-	threadNo  int
-	sinceTime time.Time
-	toTime    time.Time
-	cons      *kafka.Consumer
-	parts     []kafka.TopicPartition
+	topic        string
+	threadNo     int
+	sinceTime    time.Time
+	toTime       time.Time
+	cons         *kafka.Consumer
+	parts        []kafka.TopicPartition
+	reachedMutex sync.Mutex
 }
 
 func NewKafkaConsumer(topic string, threadNo int, threadsNum int, sinceTime time.Time, toTime time.Time, configMap kafka.ConfigMap) (*KafkaConsumer, error) {
@@ -73,6 +75,8 @@ func (c *KafkaConsumer) Do(ctx context.Context, isEndless bool, handles ...func(
 		return err
 	}
 
+	partsNum := len(c.parts)
+	finalCnt := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -89,7 +93,8 @@ func (c *KafkaConsumer) Do(ctx context.Context, isEndless bool, handles ...func(
 					return nil
 				}
 			case kafka.PartitionEOF:
-				if !isEndless {
+				finalCnt++
+				if !isEndless && finalCnt == partsNum {
 					return nil
 				}
 			}
