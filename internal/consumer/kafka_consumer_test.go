@@ -56,9 +56,10 @@ func TestKafkaConsumer_Do_Handler(t *testing.T) {
 		ev       kafka.Event
 		isHandle bool
 	}{
-		{"message", &kafka.Message{}, true},
-		{"timeout", kafka.ErrTimedOut, false},
-		{"error", kafka.ErrFail, true},
+		{"message", &kafka.Message{Timestamp: time.Now().Add(time.Hour)}, false},
+		{"message", &kafka.Message{Timestamp: time.Now().Add(-time.Hour)}, true},
+		{"timeout", kafka.NewError(kafka.ErrTimedOut, "", false), false},
+		{"error", kafka.NewError(kafka.ErrFail, "", false), true},
 		{"PartitionEOF", kafka.PartitionEOF{}, false},
 	}
 	for _, test := range tests {
@@ -66,7 +67,7 @@ func TestKafkaConsumer_Do_Handler(t *testing.T) {
 			interOp := make(chan kafka.Event)
 
 			testedUnit := KafkaConsumer{
-				toTime:   time.Now().Add(time.Hour),
+				toTime:   time.Now(),
 				cons:     &testConsumer{test.ev},
 				partsNum: 1,
 			}
