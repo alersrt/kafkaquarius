@@ -29,10 +29,12 @@ type Stats struct {
 	Offsets map[int32]int64
 }
 
-func (s Stats) FormattedString() string {
-	sentence := `Duration:	{{ .Time }} | Total:	{{ .Total }} | Found:	{{ .Found }} | Proc:	{{ .Proc }} | Errors:	{{ .Errors }} | Threads:	{{ .Threads }} | Offsets:	{{ .Offsets }}`
+func (s Stats) FormattedString(sentence string) string {
 	templ := template.Must(template.New("stats").Parse(sentence))
 	var b strings.Builder
-	_ = templ.Execute(&b, s)
+	err := templ.Execute(&b, s)
+	if err != nil {
+		return ""
+	}
 	return b.String()
 }

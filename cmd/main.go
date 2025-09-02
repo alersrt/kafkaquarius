@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
 const (
@@ -35,23 +34,26 @@ func main() {
 
 	slog.Info(fmt.Sprintf("%s: starting", cmd))
 
-	stop := make(chan byte)
-	go printStarting(ctx, stop)
-
 	app, err := internal.NewApp(cmd, cfg)
 	if err != nil {
-		slog.Error(fmt.Sprintf("%v", err))
+		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
 		os.Exit(ExitCodeError)
 	}
 	defer app.Close()
-	close(stop)
 
 	slog.Info(fmt.Sprintf("%s: started", cmd))
 
-	go printStats(ctx, app)
-
 	err = app.Execute(ctx)
-	fmt.Printf("\r%s\n", app.Stats().FormattedString())
+
+	slog.Info(fmt.Sprintf("%s: offsets: %+v", cmd, app.Stats().Offsets))
+
+	slog.Info(fmt.Sprintf("%s: %s", cmd, app.Stats().FormattedString(`statistic:
+Time:	{{ .Time }}
+Total:	{{ .Total }}
+Found:	{{ .Found }}
+Proc:	{{ .Proc }}
+Errors:	{{ .Errors }}
+`)))
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
@@ -59,37 +61,5 @@ func main() {
 	} else {
 		slog.Info(fmt.Sprintf("%s: finished", cmd))
 		os.Exit(ExitCodeDone)
-	}
-}
-
-func printStarting(ctx context.Context, stop chan byte) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	startTs := time.Now()
-	for {
-		select {
-		case <-stop:
-			fmt.Printf("\n")
-			return
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			fmt.Printf("\rStarting:\t%s", time.Since(startTs).Truncate(time.Millisecond))
-		}
-	}
-}
-
-func printStats(ctx context.Context, app *internal.App) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			fmt.Printf("\r%s", app.Stats().FormattedString())
-		}
 	}
 }
