@@ -45,13 +45,13 @@ func main() {
 
 	err = app.Execute(ctx)
 
-	slog.Info(fmt.Sprintf("%s: offsets: %v", cmd, app.Stats().Offsets))
 	slog.Info(fmt.Sprintf("%s: %s", cmd, app.Stats().FormattedString(`statistic:
 Time:	{{ .Time }}
 Total:	{{ .Total }}
 Found:	{{ .Found }}
 Proc:	{{ .Proc }}
 Errors:	{{ .Errors }}
+Offsets:	{{ .Offsets }}
 `)))
 
 	if err != nil {
