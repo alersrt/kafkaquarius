@@ -99,10 +99,10 @@ func (a *App) migrate(ctx context.Context) error {
 	prod, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": a.cfg.TargetBroker,
 	})
-	defer prod.Close()
 	if err != nil {
 		return err
 	}
+	defer prod.Close()
 
 	return a.pCons.Do(
 		ctx,

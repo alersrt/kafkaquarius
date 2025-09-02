@@ -27,11 +27,48 @@ type ParallelConsumer struct {
 	activeCons atomic.Int32
 }
 
-func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, topic string, kafkaCfg kafka.ConfigMap) (*ParallelConsumer, error) {
+func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, topic string, configMap kafka.ConfigMap) (*ParallelConsumer, error) {
+	err := configMap.SetKey("client.id", "init")
+	if err != nil {
+		return nil, err
+	}
+	cons, err := kafka.NewConsumer(&configMap)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = cons.Close()
+	}()
+	timeoutMs := 5 * time.Minute.Milliseconds()
+
+	md, err := cons.GetMetadata(&topic, false, int(timeoutMs))
+	if err != nil {
+		return nil, err
+	}
+
+	var parts []kafka.TopicPartition
+	for i := range md.Topics[topic].Partitions {
+		parts = append(parts, kafka.TopicPartition{
+			Topic:     &topic,
+			Partition: int32(i),
+			Offset:    kafka.Offset(sinceTime.UnixMilli()),
+		})
+	}
+
+	parts, err = cons.OffsetsForTimes(parts, int(timeoutMs))
+	if err != nil {
+		return nil, err
+	}
+
 	workers := make([]Consumer, threadsNum)
 	for i := 0; i < threadsNum; i++ {
 		var err error
-		workers[i], err = NewKafkaConsumer(topic, i, threadsNum, sinceTime, toTime, kafkaCfg)
+		evalParts := calcParts(i, len(parts), threadsNum)
+		consParts := make([]kafka.TopicPartition, len(evalParts))
+		for i := 0; i < len(consParts); i++ {
+			consParts[i] = parts[evalParts[i]]
+		}
+		workers[i], err = NewKafkaConsumer(i, toTime, consParts, configMap)
 		if err != nil {
 			return nil, err
 		}
@@ -99,14 +136,13 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 			case <-ctx.Done():
 				return
 			case ev := <-interOp:
-				switch ev.(type) {
+				switch ev := ev.(type) {
 				case kafka.Error:
-					errProc(ev.(kafka.Error))
+					errProc(ev)
 				case *kafka.Message:
-					msg := ev.(*kafka.Message)
-					p.StoreOffset(msg.TopicPartition.Partition, int64(msg.TopicPartition.Offset))
+					p.StoreOffset(ev.TopicPartition.Partition, int64(ev.TopicPartition.Offset))
 					for _, proc := range procs {
-						proc(msg)
+						proc(ev)
 					}
 				}
 			}
@@ -119,4 +155,27 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 	} else {
 		return nil
 	}
+}
+
+// calcParts returns list with partition numbers. Numeration is started from zero.
+func calcParts(threadNo int, partsNum int, threadsNum int) []int {
+	if threadNo >= partsNum || threadNo >= threadsNum || threadNo < 0 {
+		return nil
+	}
+	if threadsNum >= partsNum {
+		return []int{threadNo}
+	}
+	// div is always >= 1 due to previous condition
+	div := partsNum / threadsNum
+	var resLen int
+	if threadsNum*div+threadNo < partsNum {
+		resLen = div + 1
+	} else {
+		resLen = div
+	}
+	res := make([]int, resLen)
+	for i := 0; i < resLen; i++ {
+		res[i] = threadNo + threadsNum*i
+	}
+	return res
 }
