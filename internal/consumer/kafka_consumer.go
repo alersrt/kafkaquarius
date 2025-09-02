@@ -6,9 +6,15 @@ import (
 	"time"
 )
 
+type Consumer interface {
+	Poll(timeoutMs int) kafka.Event
+	Unassign() error
+	Close() error
+}
+
 type KafkaConsumer struct {
 	toTime   time.Time
-	cons     *kafka.Consumer
+	cons     Consumer
 	partsNum int
 }
 

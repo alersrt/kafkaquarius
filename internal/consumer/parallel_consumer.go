@@ -10,11 +10,6 @@ import (
 	"time"
 )
 
-type Consumer interface {
-	Do(ctx context.Context, isEndless bool, handles ...func(kafka.Event)) error
-	Close()
-}
-
 type ParallelConsumer struct {
 	threadsNum int
 	isEndless  bool
@@ -22,7 +17,7 @@ type ParallelConsumer struct {
 	toTime     time.Time
 	offsets    map[int32]int64
 	offsetMtx  sync.Mutex
-	consumers  []Consumer
+	consumers  []*KafkaConsumer
 	topic      string
 	activeCons atomic.Int32
 }
@@ -60,7 +55,7 @@ func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, 
 		return nil, err
 	}
 
-	workers := make([]Consumer, threadsNum)
+	workers := make([]*KafkaConsumer, threadsNum)
 	for i := 0; i < threadsNum; i++ {
 		var err error
 		evalParts := calcParts(i, len(parts), threadsNum)
