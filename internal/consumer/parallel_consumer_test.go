@@ -16,8 +16,8 @@ func TestParallelConsumer_Do(t *testing.T) {
 		ev       kafka.Event
 		isHandle bool
 	}{
-		{"message", &kafka.Message{Timestamp: time.Now().Add(time.Hour)}, false},
-		{"message", &kafka.Message{Timestamp: time.Now().Add(-time.Hour)}, true},
+		{"message", &kafka.Message{Timestamp: time.Now().Add(time.Hour), TopicPartition: kafka.TopicPartition{Partition: 1}}, false},
+		{"message", &kafka.Message{Timestamp: time.Now().Add(-time.Hour), TopicPartition: kafka.TopicPartition{Partition: 1}}, true},
 		{"timeout", kafka.NewError(kafka.ErrTimedOut, "", false), false},
 		{"error", kafka.NewError(kafka.ErrFail, "", false), true},
 		{"PartitionEOF", kafka.PartitionEOF{}, false},
@@ -50,29 +50,19 @@ func TestParallelConsumer_Do(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 
-			msgChan := make(chan *kafka.Message)
-			defer close(msgChan)
-			errChan := make(chan error)
-			defer close(errChan)
-
 			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						if test.isHandle {
-							t.Errorf("not handled")
+				err := testedUnit.Do(ctx,
+					func(err error) {
+						if !test.isHandle {
+							t.Errorf("shouldn't handle")
 						}
-						return
-					case <-msgChan:
-						return
-					case <-errChan:
-						return
-					}
-				}
-			}()
-
-			go func() {
-				err := testedUnit.Do(ctx, func(err error) { errChan <- err }, func(msg *kafka.Message) { msgChan <- msg })
+					},
+					func(msg *kafka.Message) {
+						if !test.isHandle {
+							t.Errorf("shouldn't handle")
+						}
+					},
+				)
 				if err != nil {
 					t.Errorf("%v", err)
 				}
