@@ -1,12 +1,86 @@
 package consumer
 
 import (
+	"context"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestParallelConsumer_Do(t *testing.T) {
+	tests := []struct {
+		name     string
+		ev       kafka.Event
+		isHandle bool
+	}{
+		{"message", &kafka.Message{Timestamp: time.Now().Add(time.Hour)}, false},
+		{"message", &kafka.Message{Timestamp: time.Now().Add(-time.Hour)}, true},
+		{"timeout", kafka.NewError(kafka.ErrTimedOut, "", false), false},
+		{"error", kafka.NewError(kafka.ErrFail, "", false), true},
+		{"PartitionEOF", kafka.PartitionEOF{}, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			threadsNum := 3
+			partsNum := 10
+			consumers := make([]*KafkaConsumer, threadsNum)
+			for i := 0; i < threadsNum; i++ {
+				evalParts := calcParts(i, partsNum, threadsNum)
+				consumers[i] = &KafkaConsumer{
+					toTime:   time.Now(),
+					cons:     &testConsumer{test.ev},
+					partsNum: len(evalParts),
+				}
+			}
+			testedUnit := &ParallelConsumer{
+				threadsNum:  0,
+				isEndless:   false,
+				sinceTime:   time.Unix(0, 0),
+				toTime:      time.Now(),
+				offsets:     map[int32]int64{0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0},
+				offsetRWMtx: sync.RWMutex{},
+				consumers:   consumers,
+				topic:       "test",
+				stats:       struct{ activeCons atomic.Int32 }{},
+			}
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			msgChan := make(chan *kafka.Message)
+			defer close(msgChan)
+			errChan := make(chan error)
+			defer close(errChan)
+
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						if test.isHandle {
+							t.Errorf("not handled")
+						}
+						return
+					case <-msgChan:
+						return
+					case <-errChan:
+						return
+					}
+				}
+			}()
+
+			go func() {
+				err := testedUnit.Do(ctx, func(err error) { errChan <- err }, func(msg *kafka.Message) { msgChan <- msg })
+				if err != nil {
+					t.Errorf("%v", err)
+				}
+			}()
+
+			<-ctx.Done()
+		})
+	}
 }
 
 func Test_calcPart(t *testing.T) {

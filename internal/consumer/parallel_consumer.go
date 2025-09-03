@@ -11,15 +11,17 @@ import (
 )
 
 type ParallelConsumer struct {
-	threadsNum int
-	isEndless  bool
-	sinceTime  time.Time
-	toTime     time.Time
-	offsets    map[int32]int64
-	offsetMtx  sync.Mutex
-	consumers  []*KafkaConsumer
-	topic      string
-	activeCons atomic.Int32
+	threadsNum  int
+	isEndless   bool
+	sinceTime   time.Time
+	toTime      time.Time
+	offsets     map[int32]int64
+	offsetRWMtx sync.RWMutex
+	consumers   []*KafkaConsumer
+	topic       string
+	stats       struct {
+		activeCons atomic.Int32
+	}
 }
 
 func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, topic string, configMap kafka.ConfigMap) (*ParallelConsumer, error) {
@@ -79,18 +81,18 @@ func NewParallelConsumer(threadsNum int, sinceTime time.Time, toTime time.Time, 
 }
 
 func (p *ParallelConsumer) Threads() int32 {
-	return p.activeCons.Load()
+	return p.stats.activeCons.Load()
 }
 
 func (p *ParallelConsumer) Offsets() map[int32]int64 {
-	p.offsetMtx.Lock()
-	defer p.offsetMtx.Unlock()
+	p.offsetRWMtx.RLock()
+	defer p.offsetRWMtx.RUnlock()
 	return maps.Clone(p.offsets)
 }
 
 func (p *ParallelConsumer) StoreOffset(partition int32, offset int64) {
-	p.offsetMtx.Lock()
-	defer p.offsetMtx.Unlock()
+	p.offsetRWMtx.Lock()
+	defer p.offsetRWMtx.Unlock()
 	p.offsets[partition] = offset
 }
 
@@ -108,15 +110,15 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 
 	var wg sync.WaitGroup
 	for _, c := range p.consumers {
-		wg.Add(1)
-		p.activeCons.Add(1)
 		go func() {
+			wg.Add(1)
+			p.stats.activeCons.Add(1)
 			err := c.Do(ctx, p.isEndless, func(ev kafka.Event) { interOp <- ev })
 			if err != nil {
 				cancel(err)
 			}
+			p.stats.activeCons.Add(-1)
 			wg.Done()
-			p.activeCons.Add(-1)
 		}()
 	}
 
