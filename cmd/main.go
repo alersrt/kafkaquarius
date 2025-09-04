@@ -18,21 +18,21 @@ const (
 )
 
 func main() {
-	var err error
-
-	cmd, cfg, err := config.NewConfig(os.Args)
-	if err != nil {
-		slog.Error(fmt.Sprintf("%v", err))
-		os.Exit(ExitCodeInvalidUsage)
-	}
-	if cfg == nil {
-		os.Exit(ExitCodeInvalidUsage)
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	go func() {
+		var err error
+
+		cmd, cfg, err := config.NewConfig(os.Args)
+		if err != nil {
+			slog.Error(fmt.Sprintf("%v", err))
+			os.Exit(ExitCodeInvalidUsage)
+		}
+		if cfg == nil {
+			os.Exit(ExitCodeInvalidUsage)
+		}
+
 		slog.Info(fmt.Sprintf("%s: starting", cmd))
 
 		app, err := internal.NewApp(cmd, cfg)
