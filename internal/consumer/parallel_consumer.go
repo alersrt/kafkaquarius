@@ -110,8 +110,8 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 
 	var wg sync.WaitGroup
 	for _, c := range p.consumers {
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			p.stats.activeCons.Add(1)
 			err := c.Do(ctx, p.isEndless, func(ev kafka.Event) { interOp <- ev })
 			if err != nil {
