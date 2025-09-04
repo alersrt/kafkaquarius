@@ -30,9 +30,9 @@ func TestParallelConsumer_Do(t *testing.T) {
 			for i := 0; i < threadsNum; i++ {
 				evalParts := calcParts(i, partsNum, threadsNum)
 				consumers[i] = &KafkaConsumer{
-					toTime:   time.Now(),
-					cons:     &testConsumer{test.ev},
-					partsNum: len(evalParts),
+					toTime: time.Now(),
+					cons:   &testConsumer{test.ev},
+					parts:  make([]kafka.TopicPartition, len(evalParts)),
 				}
 			}
 			testedUnit := &ParallelConsumer{

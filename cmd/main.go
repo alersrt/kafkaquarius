@@ -29,7 +29,7 @@ func main() {
 		os.Exit(ExitCodeInvalidUsage)
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	slog.Info(fmt.Sprintf("%s: starting", cmd))

@@ -15,6 +15,10 @@ func (t *testConsumer) Poll(timeoutMs int) kafka.Event {
 	return t.ev
 }
 
+func (t *testConsumer) Assign(parts []kafka.TopicPartition) error {
+	return nil
+}
+
 func (t *testConsumer) Unassign() error {
 	return nil
 }
@@ -36,9 +40,9 @@ func TestKafkaConsumer_Do_Empty(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			testedUnit := KafkaConsumer{
-				toTime:   time.Now(),
-				cons:     &testConsumer{test.ev},
-				partsNum: 1,
+				toTime: time.Now(),
+				cons:   &testConsumer{test.ev},
+				parts:  make([]kafka.TopicPartition, 1),
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
@@ -67,9 +71,9 @@ func TestKafkaConsumer_Do_Handler(t *testing.T) {
 			interOp := make(chan kafka.Event)
 
 			testedUnit := KafkaConsumer{
-				toTime:   time.Now(),
-				cons:     &testConsumer{test.ev},
-				partsNum: 1,
+				toTime: time.Now(),
+				cons:   &testConsumer{test.ev},
+				parts:  make([]kafka.TopicPartition, 1),
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
