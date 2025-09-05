@@ -18,21 +18,20 @@ const (
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	var err error
+	cmd, cfg, err := config.NewConfig(os.Args)
+	if err != nil {
+		slog.Error(fmt.Sprintf("%v", err))
+		os.Exit(ExitCodeInvalidUsage)
+	}
+	if cfg == nil {
+		os.Exit(ExitCodeInvalidUsage)
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	go func() {
-		var err error
-
-		cmd, cfg, err := config.NewConfig(os.Args)
-		if err != nil {
-			slog.Error(fmt.Sprintf("%v", err))
-			os.Exit(ExitCodeInvalidUsage)
-		}
-		if cfg == nil {
-			os.Exit(ExitCodeInvalidUsage)
-		}
-
 		slog.Info(fmt.Sprintf("%s: starting", cmd))
 
 		app, err := internal.NewApp(cmd, cfg)
@@ -65,4 +64,8 @@ Offsets:	{{ .Offsets }}
 	}()
 
 	<-ctx.Done()
+	if ctx.Err() != nil {
+		slog.Error(fmt.Sprintf("%s: %v", cmd, ctx.Err()))
+		os.Exit(ExitCodeError)
+	}
 }
