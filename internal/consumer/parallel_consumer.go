@@ -3,11 +3,12 @@ package consumer
 import (
 	"context"
 	"errors"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 type ParallelConsumer struct {

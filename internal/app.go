@@ -3,8 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/consumer"
 	"kafkaquarius/internal/domain"
@@ -12,6 +10,8 @@ import (
 	"os"
 	"sync/atomic"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 type App struct {
@@ -75,9 +75,6 @@ func (a *App) Stats() domain.Stats {
 }
 
 func (a *App) Execute(ctx context.Context) error {
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-
 	a.stats.startTs = time.Now()
 
 	var err error
@@ -86,10 +83,6 @@ func (a *App) Execute(ctx context.Context) error {
 		err = a.migrate(ctx)
 	case config.CmdSearch:
 		err = a.search(ctx)
-	}
-
-	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
-		err = errors.Join(err, cause)
 	}
 
 	return err
@@ -107,12 +100,11 @@ func (a *App) migrate(ctx context.Context) error {
 	return a.pCons.Do(
 		ctx,
 		func(err error) {
+			a.stats.totalCnt.Add(1)
 			a.stats.errCnt.Add(1)
 		},
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
-		},
-		func(msg *kafka.Message) {
 			if ok, _ := a.filt.Eval(msg); ok {
 				msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
 				err := prod.Produce(msg, nil)

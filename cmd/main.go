@@ -19,7 +19,6 @@ const (
 
 func main() {
 	var err error
-
 	cmd, cfg, err := config.NewConfig(os.Args)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%v", err))
@@ -32,20 +31,21 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	slog.Info(fmt.Sprintf("%s: starting", cmd))
+	go func() {
+		slog.Info(fmt.Sprintf("%s: starting", cmd))
 
-	app, err := internal.NewApp(cmd, cfg)
-	if err != nil {
-		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
-		os.Exit(ExitCodeError)
-	}
-	defer app.Close()
+		app, err := internal.NewApp(cmd, cfg)
+		if err != nil {
+			slog.Error(fmt.Sprintf("%s: %v", cmd, err))
+			os.Exit(ExitCodeError)
+		}
+		defer app.Close()
 
-	slog.Info(fmt.Sprintf("%s: started", cmd))
+		slog.Info(fmt.Sprintf("%s: started", cmd))
 
-	err = app.Execute(ctx)
+		err = app.Execute(ctx)
 
-	slog.Info(fmt.Sprintf("%s: %s", cmd, app.Stats().FormattedString(`statistic:
+		slog.Info(fmt.Sprintf("%s: %s", cmd, app.Stats().FormattedString(`statistic:
 Time:	{{ .Time }}
 Total:	{{ .Total }}
 Found:	{{ .Found }}
@@ -54,11 +54,18 @@ Errors:	{{ .Errors }}
 Offsets:	{{ .Offsets }}
 `)))
 
-	if err != nil {
-		slog.Error(fmt.Sprintf("%s: %v", cmd, err))
+		if err != nil {
+			slog.Error(fmt.Sprintf("%s: %v", cmd, err))
+			os.Exit(ExitCodeError)
+		} else {
+			slog.Info(fmt.Sprintf("%s: finished", cmd))
+			os.Exit(ExitCodeDone)
+		}
+	}()
+
+	<-ctx.Done()
+	if ctx.Err() != nil {
+		slog.Error(fmt.Sprintf("%s: %v", cmd, ctx.Err()))
 		os.Exit(ExitCodeError)
-	} else {
-		slog.Info(fmt.Sprintf("%s: finished", cmd))
-		os.Exit(ExitCodeDone)
 	}
 }

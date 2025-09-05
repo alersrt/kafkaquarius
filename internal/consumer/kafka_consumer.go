@@ -2,20 +2,22 @@ package consumer
 
 import (
 	"context"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 type Consumer interface {
 	Poll(timeoutMs int) kafka.Event
+	Assign([]kafka.TopicPartition) error
 	Unassign() error
 	Close() error
 }
 
 type KafkaConsumer struct {
-	toTime   time.Time
-	cons     Consumer
-	partsNum int
+	toTime time.Time
+	cons   Consumer
+	parts  []kafka.TopicPartition
 }
 
 func NewKafkaConsumer(threadNo int, toTime time.Time, parts []kafka.TopicPartition, configMap kafka.ConfigMap) (*KafkaConsumer, error) {
@@ -28,15 +30,10 @@ func NewKafkaConsumer(threadNo int, toTime time.Time, parts []kafka.TopicPartiti
 		return nil, err
 	}
 
-	err = cons.Assign(parts)
-	if err != nil {
-		return nil, err
-	}
-
 	return &KafkaConsumer{
-		toTime:   toTime,
-		cons:     cons,
-		partsNum: len(parts),
+		toTime: toTime,
+		cons:   cons,
+		parts:  parts,
 	}, nil
 }
 
@@ -46,6 +43,12 @@ func (c *KafkaConsumer) Close() {
 }
 
 func (c *KafkaConsumer) Do(ctx context.Context, isEndless bool, handles ...func(kafka.Event)) error {
+	err := c.cons.Assign(c.parts)
+	if err != nil {
+		return err
+	}
+
+	partsNum := len(c.parts)
 	finalCnt := 0
 	for {
 		select {
@@ -64,7 +67,7 @@ func (c *KafkaConsumer) Do(ctx context.Context, isEndless bool, handles ...func(
 				}
 			case kafka.PartitionEOF:
 				finalCnt++
-				if !isEndless && finalCnt == c.partsNum {
+				if !isEndless && finalCnt == partsNum {
 					return nil
 				}
 			}
