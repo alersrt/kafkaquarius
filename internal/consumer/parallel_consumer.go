@@ -104,36 +104,20 @@ func (p *ParallelConsumer) Close() {
 }
 
 func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), procs ...func(*kafka.Message)) error {
-	ctx, cancel := context.WithCancelCause(ctx)
+	var (
+		err    error
+		errMtx sync.Mutex
+		wg     sync.WaitGroup
+	)
 
-	interOp := make(chan kafka.Event)
-	defer close(interOp)
-
-	var wg sync.WaitGroup
 	for _, c := range p.consumers {
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			p.stats.activeCons.Add(1)
-			err := c.Do(ctx, p.isEndless, func(ev kafka.Event) { interOp <- ev })
-			if err != nil {
-				cancel(err)
-			}
-			p.stats.activeCons.Add(-1)
-			wg.Done()
-		}()
-	}
+			defer p.stats.activeCons.Add(-1)
 
-	go func() {
-		wg.Wait()
-		cancel(nil)
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case ev := <-interOp:
+			cErr := c.Do(ctx, p.isEndless, func(ev kafka.Event) {
 				switch ev := ev.(type) {
 				case kafka.Error:
 					errProc(ev)
@@ -143,16 +127,17 @@ func (p *ParallelConsumer) Do(ctx context.Context, errProc func(err error), proc
 						proc(ev)
 					}
 				}
+			})
+			if cErr != nil {
+				errMtx.Lock()
+				defer errMtx.Unlock()
+				err = errors.Join(err, cErr)
 			}
-		}
-	}()
-
-	<-ctx.Done()
-	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, ctx.Err()) {
-		return cause
-	} else {
-		return nil
+		}()
 	}
+
+	wg.Wait()
+	return err
 }
 
 // calcParts returns list with partition numbers. Numeration is started from zero.

@@ -15,7 +15,6 @@ import (
 )
 
 type App struct {
-	cmd   string
 	pCons *consumer.ParallelConsumer
 	filt  *filter.Filter
 	cfg   *config.Config
@@ -28,7 +27,7 @@ type App struct {
 	}
 }
 
-func NewApp(cmd string, cfg *config.Config) (*App, error) {
+func (a *App) Init(cfg *config.Config) error {
 	consCfg := kafka.ConfigMap{
 		"bootstrap.servers":    cfg.SourceBroker,
 		"group.id":             cfg.ConsumerGroup,
@@ -36,26 +35,23 @@ func NewApp(cmd string, cfg *config.Config) (*App, error) {
 		"enable.auto.commit":   false,
 		"enable.partition.eof": true,
 	}
-	pCons, err := consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
+	var err error
+	a.pCons, err = consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	filtCont, err := os.ReadFile(cfg.FilterFile)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	filt, err := filter.NewFilter(string(filtCont))
+	a.filt, err = filter.NewFilter(string(filtCont))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &App{
-		cmd:   cmd,
-		pCons: pCons,
-		filt:  filt,
-		cfg:   cfg,
-	}, nil
+	a.cfg = cfg
+	return nil
 }
 
 func (a *App) Close() {
@@ -63,22 +59,34 @@ func (a *App) Close() {
 }
 
 func (a *App) Stats() domain.Stats {
-	return domain.Stats{
-		Total:   a.stats.totalCnt.Load(),
-		Found:   a.stats.foundCnt.Load(),
-		Proc:    a.stats.procCnt.Load(),
-		Errors:  a.stats.errCnt.Load(),
-		Time:    time.Since(a.stats.startTs).Truncate(time.Millisecond),
-		Threads: a.pCons.Threads(),
-		Offsets: a.pCons.Offsets(),
+	stats := new(domain.Stats)
+	if a.pCons == nil {
+		stats.Threads = -1
+		stats.Offsets = nil
+	} else {
+		stats.Threads = a.pCons.Threads()
+		stats.Offsets = a.pCons.Offsets()
 	}
+
+	stats.Total = a.stats.totalCnt.Load()
+	stats.Found = a.stats.foundCnt.Load()
+	stats.Proc = a.stats.procCnt.Load()
+	stats.Errors = a.stats.errCnt.Load()
+
+	if a.stats.startTs.IsZero() {
+		stats.Time = time.Duration(0)
+	} else {
+		stats.Time = time.Since(a.stats.startTs).Truncate(time.Millisecond)
+	}
+
+	return *stats
 }
 
-func (a *App) Execute(ctx context.Context) error {
+func (a *App) Execute(ctx context.Context, cmd string) error {
 	a.stats.startTs = time.Now()
 
 	var err error
-	switch a.cmd {
+	switch cmd {
 	case config.CmdMigrate:
 		err = a.migrate(ctx)
 	case config.CmdSearch:
