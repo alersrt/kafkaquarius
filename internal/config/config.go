@@ -66,7 +66,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	produceSet.StringVar(&cfg.TargetBroker, "target-broker", "", "required")
 	produceSet.StringVar(&cfg.TargetTopic, "target-topic", "", "required")
 	produceSet.StringVar(&cfg.SourceFile, "source-file", "", "required, JSONL")
-	produceSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, Go-template")
+	produceSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
 
 	flag.Usage = func() {
 		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch, CmdProduce)

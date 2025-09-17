@@ -12,10 +12,17 @@ type Header struct {
 	Value string
 }
 
-type Message struct {
+type MessageWithStrings struct {
 	*kafka.Message
 	Key     string
 	Value   string
+	Headers []Header
+}
+
+type MessageWithAny struct {
+	*kafka.Message
+	Key     any
+	Value   any
 	Headers []Header
 }
 

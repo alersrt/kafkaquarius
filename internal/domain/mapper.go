@@ -15,16 +15,30 @@ func Des(value []byte) any {
 	}
 }
 
-func FromKafka(msg *kafka.Message) *Message {
+func FromKafkaWithStrings(msg *kafka.Message) *MessageWithStrings {
 	var headers []Header
 	for _, hdr := range msg.Headers {
 		headers = append(headers, Header{Key: hdr.Key, Value: string(hdr.Value)})
 	}
 
-	return &Message{
+	return &MessageWithStrings{
 		Message: msg,
 		Key:     string(msg.Key),
 		Value:   string(msg.Value),
+		Headers: headers,
+	}
+}
+
+func FromKafkaWithAny(msg *kafka.Message) *MessageWithAny {
+	var headers []Header
+	for _, hdr := range msg.Headers {
+		headers = append(headers, Header{Key: hdr.Key, Value: string(hdr.Value)})
+	}
+
+	return &MessageWithAny{
+		Message: msg,
+		Key:     Des(msg.Key),
+		Value:   Des(msg.Value),
 		Headers: headers,
 	}
 }

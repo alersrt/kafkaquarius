@@ -17,7 +17,7 @@ import (
 
 type App struct {
 	pCons *consumer.ParallelConsumer
-	filt  *cel.Cel
+	cel   *cel.Cel
 	cfg   *config.Config
 	stats struct {
 		startTs  time.Time
@@ -46,7 +46,7 @@ func (a *App) Init(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	a.filt, err = cel.NewCel(string(filtCont))
+	a.cel, err = cel.NewCel(string(filtCont))
 	if err != nil {
 		return err
 	}
@@ -114,13 +114,19 @@ func (a *App) migrate(ctx context.Context) error {
 		},
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
-			if ok, _ := a.filt.Eval(msg); ok {
-				msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
-				err := prod.Produce(msg, nil)
-				if err != nil {
-					a.stats.errCnt.Add(1)
-				} else {
-					a.stats.procCnt.Add(1)
+			bytes, _ := json.Marshal(domain.FromKafkaWithAny(msg))
+			boolVal, err := a.cel.Eval(bytes)
+			if err != nil {
+				a.stats.errCnt.Add(1)
+			} else {
+				if ok, val := boolVal.(bool); ok && val {
+					msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
+					err := prod.Produce(msg, nil)
+					if err != nil {
+						a.stats.errCnt.Add(1)
+					} else {
+						a.stats.procCnt.Add(1)
+					}
 				}
 			}
 		},
@@ -144,7 +150,7 @@ func (a *App) search(ctx context.Context) error {
 		if file == nil {
 			return nil
 		}
-		bytes, err := json.Marshal(domain.FromKafka(msg))
+		bytes, err := json.Marshal(domain.FromKafkaWithStrings(msg))
 		if err != nil {
 			return err
 		}
@@ -167,13 +173,19 @@ func (a *App) search(ctx context.Context) error {
 		},
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
-			if ok, _ := a.filt.Eval(msg); ok {
-				a.stats.foundCnt.Add(1)
-				err := write(msg)
-				if err != nil {
-					a.stats.errCnt.Add(1)
-				} else {
-					a.stats.procCnt.Add(1)
+			bytes, _ := json.Marshal(domain.FromKafkaWithAny(msg))
+			boolVal, err := a.cel.Eval(bytes)
+			if err != nil {
+				a.stats.errCnt.Add(1)
+			} else {
+				if ok, val := boolVal.(bool); ok && val {
+					a.stats.foundCnt.Add(1)
+					err := write(msg)
+					if err != nil {
+						a.stats.errCnt.Add(1)
+					} else {
+						a.stats.procCnt.Add(1)
+					}
 				}
 			}
 		},
@@ -181,11 +193,6 @@ func (a *App) search(ctx context.Context) error {
 }
 
 func (a *App) produce(ctx context.Context) error {
-	tmp, err := os.ReadFile(a.cfg.TemplateFile)
-	if err != nil {
-		return err
-	}
-
 	source, err := os.Open(a.cfg.SourceFile)
 	if err != nil {
 		return err
@@ -210,10 +217,15 @@ func (a *App) produce(ctx context.Context) error {
 			return nil
 		default:
 			scanner.Scan()
-
-			if err := prod.Produce(&kafka.Message{
-				Value: []byte(scanner.Text()),
-			}, nil); err != nil {
+			ev, err := a.cel.Eval([]byte(scanner.Text()))
+			if err != nil {
+				return err
+			}
+			msg := &kafka.Message{}
+			if err = json.Unmarshal(ev.([]byte), msg); err != nil {
+				return err
+			}
+			if err := prod.Produce(msg, nil); err != nil {
 				return err
 			}
 		}
