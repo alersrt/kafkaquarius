@@ -28,25 +28,28 @@ type App struct {
 	}
 }
 
-func (a *App) Init(cfg *config.Config) error {
-	consCfg := kafka.ConfigMap{
-		"bootstrap.servers":    cfg.SourceBroker,
-		"group.id":             cfg.ConsumerGroup,
-		"auto.offset.reset":    "earliest",
-		"enable.auto.commit":   false,
-		"enable.partition.eof": true,
-	}
-	var err error
-	a.pCons, err = consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
-	if err != nil {
-		return err
+func (a *App) Init(cmd string, cfg *config.Config) error {
+	switch cmd {
+	case config.CmdMigrate, config.CmdSearch:
+		consCfg := kafka.ConfigMap{
+			"bootstrap.servers":    cfg.SourceBroker,
+			"group.id":             cfg.ConsumerGroup,
+			"auto.offset.reset":    "earliest",
+			"enable.auto.commit":   false,
+			"enable.partition.eof": true,
+		}
+		var err error
+		a.pCons, err = consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
+		if err != nil {
+			return err
+		}
 	}
 
-	filtCont, err := os.ReadFile(cfg.TemplateFile)
+	temp, err := os.ReadFile(cfg.TemplateFile)
 	if err != nil {
 		return err
 	}
-	a.cel, err = cel.NewCel(string(filtCont))
+	a.cel, err = cel.NewCel(string(temp))
 	if err != nil {
 		return err
 	}

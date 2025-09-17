@@ -1,0 +1,6 @@
+{
+    TopicPartition: {
+        Topic: self.TopicPartition.Topic
+    },
+    Value: bytes(self.Value)
+}
