@@ -1,12 +1,13 @@
 package internal
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"kafkaquarius/internal/cel"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/consumer"
 	"kafkaquarius/internal/domain"
-	"kafkaquarius/internal/filter"
 	"os"
 	"sync/atomic"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 type App struct {
 	pCons *consumer.ParallelConsumer
-	filt  *filter.Filter
+	cel   *cel.Cel
 	cfg   *config.Config
 	stats struct {
 		startTs  time.Time
@@ -27,25 +28,28 @@ type App struct {
 	}
 }
 
-func (a *App) Init(cfg *config.Config) error {
-	consCfg := kafka.ConfigMap{
-		"bootstrap.servers":    cfg.SourceBroker,
-		"group.id":             cfg.ConsumerGroup,
-		"auto.offset.reset":    "earliest",
-		"enable.auto.commit":   false,
-		"enable.partition.eof": true,
-	}
-	var err error
-	a.pCons, err = consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
-	if err != nil {
-		return err
+func (a *App) Init(cmd string, cfg *config.Config) error {
+	switch cmd {
+	case config.CmdMigrate, config.CmdSearch:
+		consCfg := kafka.ConfigMap{
+			"bootstrap.servers":    cfg.SourceBroker,
+			"group.id":             cfg.ConsumerGroup,
+			"auto.offset.reset":    "earliest",
+			"enable.auto.commit":   false,
+			"enable.partition.eof": true,
+		}
+		var err error
+		a.pCons, err = consumer.NewParallelConsumer(cfg.ThreadsNumber, cfg.SinceTime, cfg.ToTime, cfg.SourceTopic, consCfg)
+		if err != nil {
+			return err
+		}
 	}
 
-	filtCont, err := os.ReadFile(cfg.FilterFile)
+	temp, err := os.ReadFile(cfg.TemplateFile)
 	if err != nil {
 		return err
 	}
-	a.filt, err = filter.NewFilter(string(filtCont))
+	a.cel, err = cel.NewCel(string(temp))
 	if err != nil {
 		return err
 	}
@@ -55,7 +59,9 @@ func (a *App) Init(cfg *config.Config) error {
 }
 
 func (a *App) Close() {
-	a.pCons.Close()
+	if a.pCons != nil {
+		a.pCons.Close()
+	}
 }
 
 func (a *App) Stats() domain.Stats {
@@ -91,6 +97,8 @@ func (a *App) Execute(ctx context.Context, cmd string) error {
 		err = a.migrate(ctx)
 	case config.CmdSearch:
 		err = a.search(ctx)
+	case config.CmdProduce:
+		err = a.produce(ctx)
 	}
 
 	return err
@@ -113,13 +121,19 @@ func (a *App) migrate(ctx context.Context) error {
 		},
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
-			if ok, _ := a.filt.Eval(msg); ok {
-				msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
-				err := prod.Produce(msg, nil)
-				if err != nil {
-					a.stats.errCnt.Add(1)
-				} else {
-					a.stats.procCnt.Add(1)
+			bytes, _ := json.Marshal(domain.FromKafkaWithAny(msg))
+			boolVal, err := a.cel.Eval(bytes)
+			if err != nil {
+				a.stats.errCnt.Add(1)
+			} else {
+				if ok, val := boolVal.(bool); ok && val {
+					msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
+					err := prod.Produce(msg, nil)
+					if err != nil {
+						a.stats.errCnt.Add(1)
+					} else {
+						a.stats.procCnt.Add(1)
+					}
 				}
 			}
 		},
@@ -143,7 +157,7 @@ func (a *App) search(ctx context.Context) error {
 		if file == nil {
 			return nil
 		}
-		bytes, err := json.Marshal(domain.FromKafka(msg))
+		bytes, err := json.Marshal(domain.FromKafkaWithStrings(msg))
 		if err != nil {
 			return err
 		}
@@ -166,15 +180,73 @@ func (a *App) search(ctx context.Context) error {
 		},
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
-			if ok, _ := a.filt.Eval(msg); ok {
-				a.stats.foundCnt.Add(1)
-				err := write(msg)
-				if err != nil {
-					a.stats.errCnt.Add(1)
-				} else {
-					a.stats.procCnt.Add(1)
+			bytes, _ := json.Marshal(domain.FromKafkaWithAny(msg))
+			boolVal, err := a.cel.Eval(bytes)
+			if err != nil {
+				a.stats.errCnt.Add(1)
+			} else {
+				if ok, val := boolVal.(bool); ok && val {
+					a.stats.foundCnt.Add(1)
+					err := write(msg)
+					if err != nil {
+						a.stats.errCnt.Add(1)
+					} else {
+						a.stats.procCnt.Add(1)
+					}
 				}
 			}
 		},
 	)
+}
+
+func (a *App) produce(ctx context.Context) error {
+	source, err := os.Open(a.cfg.SourceFile)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = source.Close()
+	}()
+
+	prod, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers": a.cfg.TargetBroker,
+	})
+	if err != nil {
+		return err
+	}
+	defer prod.Close()
+
+	scanner := bufio.NewScanner(source)
+	timeoutMs := 5 * 1000
+	for {
+		select {
+		case <-ctx.Done():
+			prod.Flush(timeoutMs)
+			return nil
+		default:
+			ok := scanner.Scan()
+			if !ok {
+				prod.Flush(timeoutMs)
+				return scanner.Err()
+			}
+			a.stats.totalCnt.Add(1)
+			ev, err := a.cel.Eval([]byte(scanner.Text()))
+			if err != nil {
+				a.stats.errCnt.Add(1)
+				return err
+			}
+			msg := &domain.MessageWithStrings{}
+			if err = json.Unmarshal(ev.([]byte), msg); err != nil {
+				a.stats.errCnt.Add(1)
+				return err
+			}
+			kMsg := domain.ToKafkaWithString(msg)
+			kMsg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
+			if err := prod.Produce(kMsg, nil); err != nil {
+				a.stats.errCnt.Add(1)
+				return err
+			}
+			a.stats.procCnt.Add(1)
+		}
+	}
 }

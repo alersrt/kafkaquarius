@@ -37,7 +37,7 @@ func main() {
 		defer func() { stop <- err }()
 		slog.Info(fmt.Sprintf("%s: starting", cmd))
 
-		err = app.Init(cfg)
+		err = app.Init(cmd, cfg)
 		if err != nil {
 			return
 		}

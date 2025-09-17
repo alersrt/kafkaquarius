@@ -13,6 +13,7 @@ The key features:
 - Migrate messages between topics and clusters.
 - Possibility to specify time range for speed up.
 - Possibility to specify number of threads (consumers) for consuming.
+- Backup messages and restore them from this backup.
 
 ## Usage
 
@@ -20,6 +21,7 @@ The key features:
 Usage of kafkaquarius-current-linux:
 migrate
 search
+produce
 ```
 
 ```
@@ -27,7 +29,7 @@ kafkaquarius-current-linux migrate
 Usage of migrate:
   -consumer-group string
         required
-  -filter-file string
+  -template-file string
         required
   -since-time int
         unix epoch time, 0 by default
@@ -50,7 +52,7 @@ kafkaquarius-current-linux search
 Usage of search:
   -consumer-group string
         required
-  -filter-file string
+  -template-file string
         required
   -output-file string
         
@@ -66,9 +68,22 @@ Usage of search:
         unix epoch time, now by default
 ```
 
+```
+Usage of produce:
+  -source-file string
+        required, JSONL
+  -target-broker string
+        required
+  -target-topic string
+        required
+  -template-file string
+        required, cel-template
+```
+
 ### Filter format
 
 The filtration mechanism is based on the [cel-go][cel-go] package which is implementation of [CEL][cel] spec with some additional extensions:
+
 - `regex`
 - `strings`
 - `encoders`
@@ -77,13 +92,14 @@ The filtration mechanism is based on the [cel-go][cel-go] package which is imple
 - `lists`
 
 Filter example: [filter.txt](examples/filter.txt).
+The CEL transform can be also useful for the building objects from the scratch, for example to build kafka messages for producing: [restore.txt](examples/restore.txt).
 
 ## Examples
 
 ### Search messages
 
 ```shell
- ./build/bin/kafkaquarius-current-linux search --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --filter-file=examples/filter.txt --output-file=examples/out.jsonl --threads-number=10 --since-time=1735664400 --to-time=1738342800
+ ./build/bin/kafkaquarius-current-linux search --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --template-file=examples/filter.txt --output-file=examples/out.jsonl --threads-number=10 --since-time=1735664400 --to-time=1738342800
 ```
 
 ```
@@ -97,7 +113,7 @@ Time:   1m1s
 ### Migrate messages
 
 ```shell
-./build/bin/kafkaquarius-current-linux migrate --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --target-topic=target-test-topic --filter-file=examples/filter.txt --threads-number=10 --since-time=1735664400 --to-time=1738342800
+./build/bin/kafkaquarius-current-linux migrate --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --target-topic=target-test-topic --template-file=examples/filter.txt --threads-number=10 --since-time=1735664400 --to-time=1738342800
 ```
 
 ```
@@ -106,6 +122,12 @@ Found:  5
 Proc:   5
 Errors: 0
 Time:   1m1s
+```
+
+### Produce messages
+
+```shell
+./build/bin/kafkaquarius-current-linux produce --target-broker=localhost:9094 --target-topic=some-target-topic --template-file=examples/restore.txt --source-file=examples/out.jsonl
 ```
 
 [jsonl]: https://jsonlines.org/

@@ -1,24 +1,25 @@
-package filter
+package cel
 
 import (
+	"encoding/json"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"testing"
 	"time"
 )
 
 func TestFilter(t *testing.T) {
-	filterContent := `Value.some == 0
-&& Headers.key1 in ['value']
-&& Headers.size() != 0
-&& string(Key).matches(".*test_key.*")
-&& Timestamp > timestamp('1970-01-01T00:00:00.000Z')
+	filterContent := `self.Value.some == 0
+&& self.Headers.key1 in ['value']
+&& self.Headers.size() != 0
+&& string(self.Key).matches(".*test_key.*")
+&& self.Timestamp > timestamp('1970-01-01T00:00:00.000Z')
 `
-	testedUnit, err := NewFilter(filterContent)
+	testedUnit, err := NewCel(filterContent)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	msg := &kafka.Message{
+	msg, _ := json.Marshal(&kafka.Message{
 		Key:   []byte("{\"kf\":\"test_key\"}"),
 		Value: []byte("{\"some\":0}"),
 		Headers: []kafka.Header{{
@@ -26,12 +27,12 @@ func TestFilter(t *testing.T) {
 			Value: []byte("value"),
 		}},
 		Timestamp: time.Now(),
-	}
+	})
 	ok, err := testedUnit.Eval(msg)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
-	if !ok {
+	if c, r := ok.(bool); !c && !r {
 		t.Errorf("expected true")
 	}
 }
@@ -43,9 +44,9 @@ func BenchmarkFilter_Eval(b *testing.B) {
 && Key.kf == 'test_key'
 && Timestamp > timestamp('1970-01-01T00:00:00.000Z')
 `
-	testedUnit, _ := NewFilter(filterContent)
+	testedUnit, _ := NewCel(filterContent)
 
-	msg := &kafka.Message{
+	msg, _ := json.Marshal(&kafka.Message{
 		Key:   []byte("{\"kf\":\"test_key\"}"),
 		Value: []byte("{\"some\":0}"),
 		Headers: []kafka.Header{{
@@ -53,7 +54,7 @@ func BenchmarkFilter_Eval(b *testing.B) {
 			Value: []byte("value"),
 		}},
 		Timestamp: time.Now(),
-	}
+	})
 
 	for i := 0; i < b.N; i++ {
 		_, _ = testedUnit.Eval(msg)
