@@ -217,14 +217,16 @@ func (a *App) produce(ctx context.Context) error {
 	defer prod.Close()
 
 	scanner := bufio.NewScanner(source)
-
+	timeoutMs := 5 * 1000
 	for {
 		select {
 		case <-ctx.Done():
+			prod.Flush(timeoutMs)
 			return nil
 		default:
 			ok := scanner.Scan()
 			if !ok {
+				prod.Flush(timeoutMs)
 				return scanner.Err()
 			}
 			a.stats.totalCnt.Add(1)
