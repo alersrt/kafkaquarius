@@ -223,19 +223,24 @@ func (a *App) produce(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			scanner.Scan()
+			ok := scanner.Scan()
+			if !ok {
+				return scanner.Err()
+			}
 			a.stats.totalCnt.Add(1)
 			ev, err := a.cel.Eval([]byte(scanner.Text()))
 			if err != nil {
 				a.stats.errCnt.Add(1)
 				return err
 			}
-			msg := &kafka.Message{}
+			msg := &domain.MessageWithStrings{}
 			if err = json.Unmarshal(ev.([]byte), msg); err != nil {
 				a.stats.errCnt.Add(1)
 				return err
 			}
-			if err := prod.Produce(msg, nil); err != nil {
+			kMsg := domain.ToKafkaWithString(msg)
+			kMsg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
+			if err := prod.Produce(kMsg, nil); err != nil {
 				a.stats.errCnt.Add(1)
 				return err
 			}

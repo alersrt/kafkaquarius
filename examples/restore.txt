@@ -1,7 +1,5 @@
 {
-    'Headers': self.Headers,
-    'TopicPartition': {
-        "Topic": self.TopicPartition.Topic
-    },
-    'Value': bytes(self.Value)
+    'Headers': has(self.Headers) ? self.Headers : [],
+    'Key': has(self.Key) ? self.Key : "",
+    'Value': has(self.Value) ? self.Value : ""
 }

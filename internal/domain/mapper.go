@@ -42,3 +42,20 @@ func FromKafkaWithAny(msg *kafka.Message) *MessageWithAny {
 		Headers: headers,
 	}
 }
+
+func ToKafkaWithString(msg *MessageWithStrings) *kafka.Message {
+	kMsg := msg.Message
+	if kMsg == nil {
+		kMsg = &kafka.Message{}
+	}
+
+	var headers []kafka.Header
+	for _, hdr := range msg.Headers {
+		headers = append(headers, kafka.Header{Key: hdr.Key, Value: []byte(hdr.Value)})
+	}
+
+	kMsg.Headers = headers
+	kMsg.Key = []byte(msg.Key)
+	kMsg.Value = []byte(msg.Value)
+	return kMsg
+}
