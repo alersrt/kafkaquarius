@@ -224,17 +224,22 @@ func (a *App) produce(ctx context.Context) error {
 			return nil
 		default:
 			scanner.Scan()
+			a.stats.totalCnt.Add(1)
 			ev, err := a.cel.Eval([]byte(scanner.Text()))
 			if err != nil {
+				a.stats.errCnt.Add(1)
 				return err
 			}
 			msg := &kafka.Message{}
 			if err = json.Unmarshal(ev.([]byte), msg); err != nil {
+				a.stats.errCnt.Add(1)
 				return err
 			}
 			if err := prod.Produce(msg, nil); err != nil {
+				a.stats.errCnt.Add(1)
 				return err
 			}
+			a.stats.procCnt.Add(1)
 		}
 	}
 }
