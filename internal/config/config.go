@@ -12,6 +12,7 @@ import (
 const (
 	CmdMigrate = "migrate"
 	CmdSearch  = "search"
+	CmdProduce = "produce"
 )
 
 const (
@@ -21,6 +22,8 @@ const (
 type Config struct {
 	FilterFile    string    `json:"filter_file,omitempty"`
 	OutputFile    string    `json:"output_file,omitempty"`
+	SourceFile    string    `json:"source_file,omitempty"`
+	TemplateFile  string    `json:"template_file,omitempty"`
 	SourceBroker  string    `json:"source_broker,omitempty"`
 	TargetBroker  string    `json:"target_broker,omitempty"`
 	SourceTopic   string    `json:"source_topic,omitempty"`
@@ -28,7 +31,7 @@ type Config struct {
 	ConsumerGroup string    `json:"consumer_group,omitempty"`
 	ThreadsNumber int       `json:"threads_number,omitempty"`
 	SinceTime     time.Time `json:"since_time,omitempty"`
-	ToTime        time.Time `json:"to_time"`
+	ToTime        time.Time `json:"to_time,omitempty"`
 }
 
 // NewConfig parses flags and returns list of parsed values in the Config struct.
@@ -59,8 +62,14 @@ func NewConfig(args []string) (string, *Config, error) {
 	searchSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
 	searchSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, infinity by default")
 
+	produceSet := flag.NewFlagSet(CmdProduce, flag.ExitOnError)
+	produceSet.StringVar(&cfg.TargetBroker, "target-broker", "", "required")
+	produceSet.StringVar(&cfg.TargetTopic, "target-topic", "", "required")
+	produceSet.StringVar(&cfg.SourceFile, "source-file", "", "required, JSONL")
+	produceSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, Go-template")
+
 	flag.Usage = func() {
-		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch)
+		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch, CmdProduce)
 		if err != nil {
 			return
 		}
@@ -127,6 +136,29 @@ func NewConfig(args []string) (string, *Config, error) {
 		}
 		if cfg.SourceTopic == "" {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --source-topic"))
+		}
+
+	case CmdProduce:
+		if len(args) < 3 {
+			produceSet.Usage()
+			return "", nil, nil
+		}
+
+		if err := produceSet.Parse(args[2:]); err != nil {
+			return CmdProduce, nil, err
+		}
+
+		if cfg.TargetBroker == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --target-broker"))
+		}
+		if cfg.TargetTopic == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --target-topic"))
+		}
+		if cfg.SourceFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --source-file"))
+		}
+		if cfg.TemplateFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --template-file"))
 		}
 
 	default:

@@ -1,12 +1,13 @@
 package internal
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"kafkaquarius/internal/cel"
 	"kafkaquarius/internal/config"
 	"kafkaquarius/internal/consumer"
 	"kafkaquarius/internal/domain"
-	"kafkaquarius/internal/filter"
 	"os"
 	"sync/atomic"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 type App struct {
 	pCons *consumer.ParallelConsumer
-	filt  *filter.Filter
+	filt  *cel.Cel
 	cfg   *config.Config
 	stats struct {
 		startTs  time.Time
@@ -45,7 +46,7 @@ func (a *App) Init(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	a.filt, err = filter.NewFilter(string(filtCont))
+	a.filt, err = cel.NewCel(string(filtCont))
 	if err != nil {
 		return err
 	}
@@ -177,4 +178,44 @@ func (a *App) search(ctx context.Context) error {
 			}
 		},
 	)
+}
+
+func (a *App) produce(ctx context.Context) error {
+	tmp, err := os.ReadFile(a.cfg.TemplateFile)
+	if err != nil {
+		return err
+	}
+
+	source, err := os.Open(a.cfg.SourceFile)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = source.Close()
+	}()
+
+	prod, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers": a.cfg.TargetBroker,
+	})
+	if err != nil {
+		return err
+	}
+	defer prod.Close()
+
+	scanner := bufio.NewScanner(source)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			scanner.Scan()
+
+			if err := prod.Produce(&kafka.Message{
+				Value: []byte(scanner.Text()),
+			}, nil); err != nil {
+				return err
+			}
+		}
+	}
 }
