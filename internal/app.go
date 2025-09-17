@@ -59,7 +59,9 @@ func (a *App) Init(cmd string, cfg *config.Config) error {
 }
 
 func (a *App) Close() {
-	a.pCons.Close()
+	if a.pCons != nil {
+		a.pCons.Close()
+	}
 }
 
 func (a *App) Stats() domain.Stats {
@@ -95,6 +97,8 @@ func (a *App) Execute(ctx context.Context, cmd string) error {
 		err = a.migrate(ctx)
 	case config.CmdSearch:
 		err = a.search(ctx)
+	case config.CmdProduce:
+		err = a.produce(ctx)
 	}
 
 	return err
