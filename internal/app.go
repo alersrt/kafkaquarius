@@ -42,7 +42,7 @@ func (a *App) Init(cfg *config.Config) error {
 		return err
 	}
 
-	filtCont, err := os.ReadFile(cfg.FilterFile)
+	filtCont, err := os.ReadFile(cfg.TemplateFile)
 	if err != nil {
 		return err
 	}

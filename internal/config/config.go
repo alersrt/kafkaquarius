@@ -20,7 +20,6 @@ const (
 )
 
 type Config struct {
-	FilterFile    string    `json:"filter_file,omitempty"`
 	OutputFile    string    `json:"output_file,omitempty"`
 	SourceFile    string    `json:"source_file,omitempty"`
 	TemplateFile  string    `json:"template_file,omitempty"`
@@ -42,7 +41,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	toTime := int64(0)
 
 	migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
-	migrateSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
+	migrateSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
 	migrateSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
 	migrateSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
 	migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
@@ -53,7 +52,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, infinity by default")
 
 	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
-	searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "required")
+	searchSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
 	searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
 	searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
 	searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
@@ -95,8 +94,8 @@ func NewConfig(args []string) (string, *Config, error) {
 			return CmdMigrate, nil, err
 		}
 
-		if cfg.FilterFile == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --filter-file"))
+		if cfg.TemplateFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --template-file"))
 		}
 		if cfg.ConsumerGroup == "" {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --consumer-group"))
@@ -125,8 +124,8 @@ func NewConfig(args []string) (string, *Config, error) {
 			return CmdSearch, nil, err
 		}
 
-		if cfg.FilterFile == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --filter-file"))
+		if cfg.TemplateFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --template-file"))
 		}
 		if cfg.ConsumerGroup == "" {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --consumer-group"))
