@@ -59,3 +59,31 @@ func ToKafkaWithString(msg *MessageWithStrings) *kafka.Message {
 	kMsg.Value = []byte(msg.Value)
 	return kMsg
 }
+
+func ToKafkaWithAny(msg *MessageWithAny) *kafka.Message {
+	kMsg := msg.Message
+	if kMsg == nil {
+		kMsg = &kafka.Message{}
+	}
+
+	var headers []kafka.Header
+	for _, hdr := range msg.Headers {
+		headers = append(headers, kafka.Header{Key: hdr.Key, Value: []byte(hdr.Value)})
+	}
+	kMsg.Headers = headers
+
+	switch val := msg.Key.(type) {
+	case string:
+		kMsg.Key = []byte(val)
+	default:
+		kMsg.Key, _ = json.Marshal(msg.Key)
+	}
+
+	switch val := msg.Value.(type) {
+	case string:
+		kMsg.Value = []byte(val)
+	default:
+		kMsg.Value, _ = json.Marshal(msg.Value)
+	}
+	return kMsg
+}

@@ -126,7 +126,7 @@ func (a *App) migrate(ctx context.Context) error {
 			if err != nil {
 				a.stats.errCnt.Add(1)
 			} else {
-				if ok, val := boolVal.(bool); ok && val {
+				if val, ok := boolVal.(bool); ok && val {
 					msg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
 					err := prod.Produce(msg, nil)
 					if err != nil {
@@ -185,7 +185,7 @@ func (a *App) search(ctx context.Context) error {
 			if err != nil {
 				a.stats.errCnt.Add(1)
 			} else {
-				if ok, val := boolVal.(bool); ok && val {
+				if val, ok := boolVal.(bool); ok && val {
 					a.stats.foundCnt.Add(1)
 					err := write(msg)
 					if err != nil {
@@ -235,12 +235,12 @@ func (a *App) produce(ctx context.Context) error {
 				a.stats.errCnt.Add(1)
 				return err
 			}
-			msg := &domain.MessageWithStrings{}
+			msg := &domain.MessageWithAny{}
 			if err = json.Unmarshal(ev.([]byte), msg); err != nil {
 				a.stats.errCnt.Add(1)
 				return err
 			}
-			kMsg := domain.ToKafkaWithString(msg)
+			kMsg := domain.ToKafkaWithAny(msg)
 			kMsg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
 			if err := prod.Produce(kMsg, nil); err != nil {
 				a.stats.errCnt.Add(1)

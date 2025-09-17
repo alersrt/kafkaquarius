@@ -1,0 +1,9 @@
+{
+    'Headers': [{"Key": "Test", "Value": uuid()}],
+    'Key': uuid(),
+    'Value': {
+        'SentTs': now(),
+        'Version': self.version,
+        'Kinds': self.value.map(s, {'String': s})
+    }
+}
