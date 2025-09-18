@@ -99,14 +99,14 @@ The filtration mechanism is based on the [cel-go][cel-go] package which is imple
 - `lists`
 
 Filter example: [filter.txt](examples/filter.txt).
-The CEL transform can be also useful for the building objects from the scratch, for example to build kafka messages for producing: [restore.txt](examples/restore.txt).
+The CEL transform can be also useful for the building objects from the scratch, for example to build kafka messages for producing: [restore-transform.txt](examples/restore_transform.txt).
 
 ## Examples
 
 ### Search messages
 
 ```shell
- ./build/bin/kafkaquarius-current-linux search --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --template-file=examples/filter.txt --output-file=examples/out.jsonl --threads-number=10 --since-time=1735664400 --to-time=1738342800
+ ./build/bin/kafkaquarius-current-linux search --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --filter-file=examples/filter.txt --output-file=examples/out.jsonl --threads-number=10 --since-time=1735664400 --to-time=1738342800
 ```
 
 ```
@@ -120,7 +120,7 @@ Time:   1m1s
 ### Migrate messages
 
 ```shell
-./build/bin/kafkaquarius-current-linux migrate --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --target-topic=target-test-topic --template-file=examples/filter.txt --threads-number=10 --since-time=1735664400 --to-time=1738342800
+./build/bin/kafkaquarius-current-linux migrate --consumer-group=kafkaquarius --source-broker=localhost:9092 --source-topic=test-topic --target-topic=target-test-topic --filter-file=examples/filter.txt --threads-number=10 --since-time=1735664400 --to-time=1738342800
 ```
 
 ```
@@ -134,7 +134,7 @@ Time:   1m1s
 ### Produce messages
 
 ```shell
-./build/bin/kafkaquarius-current-linux produce --target-broker=localhost:9094 --target-topic=some-target-topic --template-file=examples/restore.txt --source-file=examples/out.jsonl
+./build/bin/kafkaquarius-current-linux produce --target-broker=localhost:9094 --target-topic=some-target-topic --template-file=examples/restore_transform.txt --source-file=examples/out.jsonl
 ```
 
 ## Pay attention!
