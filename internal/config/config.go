@@ -20,9 +20,10 @@ const (
 )
 
 type Config struct {
+	FilterFile    string    `json:"filter_file,omitempty"`
+	TemplateFile  string    `json:"template_file,omitempty"`
 	OutputFile    string    `json:"output_file,omitempty"`
 	SourceFile    string    `json:"source_file,omitempty"`
-	TemplateFile  string    `json:"template_file,omitempty"`
 	SourceBroker  string    `json:"source_broker,omitempty"`
 	TargetBroker  string    `json:"target_broker,omitempty"`
 	SourceTopic   string    `json:"source_topic,omitempty"`
@@ -42,7 +43,8 @@ func NewConfig(args []string) (string, *Config, error) {
 	leeroy := false
 
 	migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
-	migrateSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
+	migrateSet.StringVar(&cfg.FilterFile, "filter-file", "", "required, CEL filter")
+	migrateSet.StringVar(&cfg.TemplateFile, "template-file", "", "optional, CEL transform")
 	migrateSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
 	migrateSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
 	migrateSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
@@ -54,7 +56,8 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.BoolVar(&leeroy, "leeroy", false, "fatuity and courage")
 
 	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
-	searchSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
+	searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "required, CEL filter")
+	searchSet.StringVar(&cfg.TemplateFile, "template-file", "", "optional, CEL transform")
 	searchSet.StringVar(&cfg.ConsumerGroup, "consumer-group", "", "required")
 	searchSet.StringVar(&cfg.SourceBroker, "source-broker", "", "required")
 	searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
@@ -67,7 +70,8 @@ func NewConfig(args []string) (string, *Config, error) {
 	produceSet.StringVar(&cfg.TargetBroker, "target-broker", "", "required")
 	produceSet.StringVar(&cfg.TargetTopic, "target-topic", "", "required")
 	produceSet.StringVar(&cfg.SourceFile, "source-file", "", "required, JSONL")
-	produceSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
+	produceSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, CEL transform")
+	produceSet.StringVar(&cfg.FilterFile, "filter-file", "", "optional, CEL filter")
 
 	flag.Usage = func() {
 		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch, CmdProduce)
@@ -96,8 +100,8 @@ func NewConfig(args []string) (string, *Config, error) {
 			return CmdMigrate, nil, err
 		}
 
-		if cfg.TemplateFile == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --template-file"))
+		if cfg.FilterFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --filter-file"))
 		}
 		if cfg.ConsumerGroup == "" {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --consumer-group"))
@@ -130,8 +134,8 @@ func NewConfig(args []string) (string, *Config, error) {
 			return CmdSearch, nil, err
 		}
 
-		if cfg.TemplateFile == "" {
-			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --template-file"))
+		if cfg.FilterFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --filter-file"))
 		}
 		if cfg.ConsumerGroup == "" {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --consumer-group"))
