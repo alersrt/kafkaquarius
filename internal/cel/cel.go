@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	varNameSelf  = "self"
-	funcNameUuid = "uuid"
-	funcNameNow  = "now"
+	varNameSelf   = "self"
+	funcNameUuid  = "uuid"
+	funcNameNow   = "now"
+	funcNameUnbox = "unbox"
 )
 
 type Cel struct {
@@ -24,13 +25,13 @@ type Cel struct {
 
 func NewCel(expression string) (*Cel, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(varNameSelf, cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable(varNameSelf, cel.DynType),
 		cel.Function(overloads.TypeConvertString, cel.Overload(
 			"map_to_string", []*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.StringType,
 			cel.UnaryBinding(func(value ref.Val) ref.Val {
 				b, err := json.Marshal(value.Value())
 				if err != nil {
-					return types.NewErr("%w", err)
+					return types.NewErr("cel: %w", err)
 				}
 				return types.String(b)
 			}),
@@ -47,7 +48,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					parsed, err := uuid.ParseBytes(value.Value().([]byte))
 					if err != nil {
-						return types.NewErr("%w", err)
+						return types.NewErr("cel: %w", err)
 					}
 					return types.String(parsed.String())
 				}),
@@ -57,7 +58,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					parsed, err := uuid.Parse(value.Value().(string))
 					if err != nil {
-						return types.NewErr("%w", err)
+						return types.NewErr("cel: %w", err)
 					}
 					return types.String(parsed.String())
 				}),
@@ -68,6 +69,28 @@ func NewCel(expression string) (*Cel, error) {
 				nil, cel.TimestampType,
 				cel.FunctionBinding(func(values ...ref.Val) ref.Val {
 					return types.Timestamp{Time: time.Now()}
+				}),
+			),
+		),
+		cel.Function(funcNameUnbox,
+			cel.Overload("unbox_bytes",
+				[]*cel.Type{cel.BytesType}, cel.MapType(cel.StringType, cel.DynType),
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					var dst map[string]any
+					if err := json.Unmarshal(value.Value().([]byte), &dst); err != nil {
+						return types.NewErr("cel: %w", err)
+					}
+					return types.NewStringInterfaceMap(nil, dst)
+				}),
+			),
+			cel.Overload("unbox_string",
+				[]*cel.Type{cel.StringType}, cel.MapType(cel.StringType, cel.DynType),
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					var dst map[string]any
+					if err := json.Unmarshal([]byte(value.Value().(string)), &dst); err != nil {
+						return types.NewErr("cel: %w", err)
+					}
+					return types.NewStringInterfaceMap(nil, dst)
 				}),
 			),
 		),
@@ -97,13 +120,7 @@ func NewCel(expression string) (*Cel, error) {
 	return &Cel{prog: prog}, nil
 }
 
-func (p *Cel) Eval(obj []byte) (any, error) {
-	var data any
-	data = make(map[string]any)
-	if err := json.Unmarshal(obj, &data); err != nil {
-		data = string(obj)
-	}
-
+func (p *Cel) Eval(data any) (any, error) {
 	eval, _, err := p.prog.Eval(map[string]any{varNameSelf: data})
 	if err != nil {
 		return nil, fmt.Errorf("cel: eval: %v", err)
@@ -118,7 +135,7 @@ func (p *Cel) Eval(obj []byte) (any, error) {
 		complex64, complex128:
 		return eV, nil
 	default:
-		return json.Marshal(convert(eV))
+		return convert(eV), nil
 	}
 }
 

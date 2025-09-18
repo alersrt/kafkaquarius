@@ -11,7 +11,6 @@ import (
 	"kafkaquarius/internal/domain"
 	"log/slog"
 	"os"
-	"reflect"
 	"sync/atomic"
 	"time"
 
@@ -151,7 +150,7 @@ func (a *App) migrate(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(obj, &domain.MessageWithAny{})
+			dst, err := a.eval(obj)
 			if err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("eval: %v: %s", err, string(obj)))
@@ -183,7 +182,7 @@ func (a *App) search(ctx context.Context) error {
 		}()
 	}
 
-	write := func(msg *domain.MessageWithAny) error {
+	write := func(msg any) error {
 		if file == nil {
 			return nil
 		}
@@ -211,12 +210,10 @@ func (a *App) search(ctx context.Context) error {
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
 
-			msgA := domain.FromKafkaWithAny(msg)
-			obj, _ := json.Marshal(msgA)
-			found, err := a.check(obj, false)
+			found, err := a.check(msg, false)
 			if err != nil {
 				a.stats.errCnt.Add(1)
-				slog.Error(fmt.Sprintf("check: %v: %s", err, string(obj)))
+				slog.Error(fmt.Sprintf("check: %v: %+v", err, msg))
 				return
 			}
 			if !found {
@@ -224,14 +221,14 @@ func (a *App) search(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(obj, msgA)
+			dst, err := a.eval(msg)
 			if err != nil {
 				a.stats.errCnt.Add(1)
-				slog.Error(fmt.Sprintf("eval: %v: %+v", err, msgA))
+				slog.Error(fmt.Sprintf("eval: %v: %+v", err, msg))
 				return
 			}
 
-			err = write(dst.(*domain.MessageWithAny))
+			err = write(dst)
 			if err != nil {
 				slog.Error(fmt.Sprintf("write: %v: %+v", err, dst))
 				a.stats.errCnt.Add(1)
@@ -286,7 +283,7 @@ func (a *App) produce(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(obj, &domain.MessageWithAny{})
+			dst, err := a.eval(obj)
 			if err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("eval: %v: %s", err, string(obj)))
@@ -305,7 +302,7 @@ func (a *App) produce(ctx context.Context) error {
 	}
 }
 
-func (a *App) check(self []byte, def bool) (bool, error) {
+func (a *App) check(self any, def bool) (bool, error) {
 	if a.filter != nil {
 		ev, err := a.filter.Eval(self)
 		if err != nil {
@@ -316,17 +313,9 @@ func (a *App) check(self []byte, def bool) (bool, error) {
 	return def, nil
 }
 
-func (a *App) eval(self []byte, bypass any) (any, error) {
+func (a *App) eval(self any) (any, error) {
 	if a.transform != nil {
-		ev, err := a.transform.Eval(self)
-		if err != nil {
-			return nil, err
-		}
-		dst := reflect.New(reflect.TypeOf(bypass).Elem()).Interface()
-		if err = json.Unmarshal(ev.([]byte), dst); err != nil {
-			return nil, err
-		}
-		return dst, nil
+		return a.transform.Eval(self)
 	}
-	return bypass, nil
+	return self, nil
 }
