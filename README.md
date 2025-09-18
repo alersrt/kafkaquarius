@@ -26,12 +26,11 @@ produce
 ```
 
 ```
-kafkaquarius-current-linux migrate
 Usage of migrate:
   -consumer-group string
         required
-  -template-file string
-        required
+  -filter-file string
+        required, CEL filter
   -leeroy
         fatuity and courage
   -since-time int
@@ -44,6 +43,8 @@ Usage of migrate:
         --source-broker is used if empty
   -target-topic string
         --source-topic is used if empty
+  -template-file string
+        optional, CEL transform
   -threads-number int
          (default 1)
   -to-time int
@@ -51,12 +52,11 @@ Usage of migrate:
 ```
 
 ```
-kafkaquarius-current-linux search
 Usage of search:
   -consumer-group string
         required
-  -template-file string
-        required
+  -filter-file string
+        required, CEL filter
   -output-file string
         
   -since-time int
@@ -65,6 +65,8 @@ Usage of search:
         required
   -source-topic string
         required
+  -template-file string
+        optional, CEL transform
   -threads-number int
          (default 1)
   -to-time int
@@ -73,6 +75,8 @@ Usage of search:
 
 ```
 Usage of produce:
+  -filter-file string
+        optional, CEL filter
   -source-file string
         required, JSONL
   -target-broker string
@@ -80,7 +84,7 @@ Usage of produce:
   -target-topic string
         required
   -template-file string
-        required, cel-template
+        required, CEL transform
 ```
 
 ### Filter format
