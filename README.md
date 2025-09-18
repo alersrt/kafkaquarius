@@ -4,6 +4,7 @@ CLI tool for Kafka's messages migration. It can be useful for the next cases:
 
 - You need to resend Kafka's messages to the same or another topic or even broker. And especially if you need to do it with filtration.
 - You need to search some messages in concrete topic and store them.
+- You need to send messages from stored backup or build them from provided data with template.
 
 This app provides these possibilities.
 

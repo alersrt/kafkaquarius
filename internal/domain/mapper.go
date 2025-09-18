@@ -75,6 +75,8 @@ func ToKafkaWithAny(msg *MessageWithAny) *kafka.Message {
 	switch val := msg.Key.(type) {
 	case string:
 		kMsg.Key = []byte(val)
+	case []byte:
+		kMsg.Key = val
 	default:
 		kMsg.Key, _ = json.Marshal(msg.Key)
 	}
@@ -82,6 +84,8 @@ func ToKafkaWithAny(msg *MessageWithAny) *kafka.Message {
 	switch val := msg.Value.(type) {
 	case string:
 		kMsg.Value = []byte(val)
+	case []byte:
+		kMsg.Value = val
 	default:
 		kMsg.Value, _ = json.Marshal(msg.Value)
 	}
