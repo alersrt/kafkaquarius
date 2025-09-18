@@ -11,6 +11,7 @@ import (
 	"kafkaquarius/internal/domain"
 	"log/slog"
 	"os"
+	"reflect"
 	"sync/atomic"
 	"time"
 
@@ -315,15 +316,17 @@ func (a *App) check(self []byte, def bool) (bool, error) {
 	return def, nil
 }
 
-func (a *App) eval(self []byte, dest any) (any, error) {
+func (a *App) eval(self []byte, bypass any) (any, error) {
 	if a.transform != nil {
 		ev, err := a.transform.Eval(self)
 		if err != nil {
 			return nil, err
 		}
-		if err = json.Unmarshal(ev.([]byte), dest); err != nil {
+		dst := reflect.New(reflect.TypeOf(bypass).Elem()).Interface()
+		if err = json.Unmarshal(ev.([]byte), dst); err != nil {
 			return nil, err
 		}
+		return dst, nil
 	}
-	return dest, nil
+	return bypass, nil
 }
