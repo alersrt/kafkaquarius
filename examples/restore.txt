@@ -1,5 +1,7 @@
 {
     'Headers': self.Headers != null ? self.Headers : [],
     'Key': has(self.Key) ? self.Key : '',
-    'Value': has(self.Value) ? self.Value : ''
+    'Value': has(self.Value) ? self.Value : '',
+    'Timestamp': now(),
+    'TimestampType': 1
 }

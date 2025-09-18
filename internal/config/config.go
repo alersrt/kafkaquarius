@@ -39,6 +39,7 @@ func NewConfig(args []string) (string, *Config, error) {
 
 	sinceTime := int64(0)
 	toTime := int64(0)
+	leeroy := false
 
 	migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
 	migrateSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
@@ -50,6 +51,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
 	migrateSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
 	migrateSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, infinity by default")
+	migrateSet.BoolVar(&leeroy, "leeroy", false, "fatuity and courage")
 
 	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
 	searchSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, cel-template")
@@ -112,6 +114,10 @@ func NewConfig(args []string) (string, *Config, error) {
 		}
 		if cfg.TargetTopic == "" {
 			cfg.TargetTopic = cfg.SourceTopic
+		}
+
+		if cfg.SourceBroker == cfg.TargetBroker && cfg.SourceTopic == cfg.TargetTopic && !leeroy {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: not Leeroy: the source coincides with the destination"))
 		}
 
 	case CmdSearch:

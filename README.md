@@ -32,6 +32,8 @@ Usage of migrate:
         required
   -template-file string
         required
+  -leeroy
+        fatuity and courage
   -since-time int
         unix epoch time, 0 by default
   -source-broker string
@@ -45,7 +47,7 @@ Usage of migrate:
   -threads-number int
          (default 1)
   -to-time int
-        unix epoch time, now by default
+        unix epoch time, infinity by default
 ```
 
 ```
@@ -66,7 +68,7 @@ Usage of search:
   -threads-number int
          (default 1)
   -to-time int
-        unix epoch time, now by default
+        unix epoch time, infinity by default
 ```
 
 ```
@@ -130,6 +132,11 @@ Time:   1m1s
 ```shell
 ./build/bin/kafkaquarius-current-linux produce --target-broker=localhost:9094 --target-topic=some-target-topic --template-file=examples/restore.txt --source-file=examples/out.jsonl
 ```
+
+## Pay attention!
+
+By default, you can't to specify source as destination without direct allowance via special flag `--leeroy=true`.
+
 
 [jsonl]: https://jsonlines.org/
 
