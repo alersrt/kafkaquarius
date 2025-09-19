@@ -3,19 +3,23 @@ package cel
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/overloads"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 	"github.com/google/uuid"
+	"reflect"
 	"time"
 )
 
 const (
-	varNameSelf  = "self"
-	funcNameUuid = "uuid"
-	funcNameNow  = "now"
+	varNameSelf       = "self"
+	funcNameUuid      = "uuid"
+	funcNameNow       = "now"
+	funcNameUnmarshal = "unmarshal"
+	funcNameMarshal   = "marshal"
 )
 
 type Cel struct {
@@ -24,13 +28,13 @@ type Cel struct {
 
 func NewCel(expression string) (*Cel, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(varNameSelf, cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable(varNameSelf, cel.DynType),
 		cel.Function(overloads.TypeConvertString, cel.Overload(
 			"map_to_string", []*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.StringType,
 			cel.UnaryBinding(func(value ref.Val) ref.Val {
 				b, err := json.Marshal(value.Value())
 				if err != nil {
-					return types.NewErr("%w", err)
+					return types.NewErr("cel: %w", err)
 				}
 				return types.String(b)
 			}),
@@ -47,7 +51,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					parsed, err := uuid.ParseBytes(value.Value().([]byte))
 					if err != nil {
-						return types.NewErr("%w", err)
+						return types.NewErr("cel: %w", err)
 					}
 					return types.String(parsed.String())
 				}),
@@ -57,7 +61,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					parsed, err := uuid.Parse(value.Value().(string))
 					if err != nil {
-						return types.NewErr("%w", err)
+						return types.NewErr("cel: %w", err)
 					}
 					return types.String(parsed.String())
 				}),
@@ -71,8 +75,31 @@ func NewCel(expression string) (*Cel, error) {
 				}),
 			),
 		),
-		cel.OptionalTypes(),
-		ext.Regex(),
+		cel.Function(funcNameUnmarshal,
+			cel.Overload(funcNameUnmarshal+"_from_bytes",
+				[]*cel.Type{cel.BytesType}, cel.DynType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					var dst any
+					if err := json.Unmarshal(value.Value().([]byte), &dst); err != nil {
+						return types.NewErr("cel: %w", err)
+					}
+					return types.DefaultTypeAdapter.NativeToValue(dst)
+				}),
+			),
+		),
+		cel.Function(funcNameMarshal,
+			cel.Overload(funcNameUnmarshal+"_to_bytes",
+				[]*cel.Type{cel.DynType}, cel.BytesType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					bytes, err := json.Marshal(convert(value.Value()))
+					if err != nil {
+						return types.NewErr("cel: %w", err)
+					}
+					return types.Bytes(bytes)
+				}),
+			),
+		),
+		ext.NativeTypes(reflect.TypeFor[kafka.Message]()),
 		ext.Strings(),
 		ext.Encoders(),
 		ext.Math(),
@@ -97,29 +124,13 @@ func NewCel(expression string) (*Cel, error) {
 	return &Cel{prog: prog}, nil
 }
 
-func (p *Cel) Eval(obj []byte) (any, error) {
-	var data any
-	data = make(map[string]any)
-	if err := json.Unmarshal(obj, &data); err != nil {
-		data = string(obj)
-	}
-
+func (p *Cel) Eval(data any, typeDesc reflect.Type) (any, error) {
 	eval, _, err := p.prog.Eval(map[string]any{varNameSelf: data})
 	if err != nil {
 		return nil, fmt.Errorf("cel: eval: %v", err)
 	}
 
-	switch eV := eval.Value().(type) {
-	case bool,
-		string,
-		int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64,
-		complex64, complex128:
-		return eV, nil
-	default:
-		return json.Marshal(convert(eV))
-	}
+	return eval.ConvertToNative(typeDesc)
 }
 
 func convert(src any) any {

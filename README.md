@@ -16,6 +16,37 @@ The key features:
 - Possibility to specify number of threads (consumers) for consuming.
 - Backup messages and restore them from this backup.
 
+## Filter and transform format
+
+The filtration mechanism is based on the [cel-go][cel-go] package which is implementation of [CEL][cel] spec with some additional extensions:
+
+- `strings`
+- `encoders`
+- `math`
+- `sets`
+- `lists`
+
+The CEL transform can be also useful for the building objects from the scratch, for example to build kafka messages for producing or supplying backup and restoring.
+
+Examples:
+
+- filter example: [filter.txt](examples/filter.txt)
+- backup transform: [migration_transform.txt](examples/migration_transform.txt)
+- backup transform: [store_transform.txt](examples/store_transform.txt)
+- restore transform: [restore_transform.txt](examples/restore_transform.txt)
+- build elements from scratch: [data.jsonl](examples/data.jsonl) and [build.txt](examples/build.txt)
+
+Some additional functions for cel:
+
+- `uuid()` - generates random uuid, also available `uuid(b'...'` and `uuid("...")`
+- `now()` - generates current timestamp
+- `marschal(any)` - marshal provided data to bytes
+- `unmarshal([]byte)` - unmarshal bytes to data
+
+## Pay attention!
+
+By default, you can't to specify source as destination without direct allowance via special flag `--leeroy=true`.
+
 ## Usage
 
 ```
@@ -87,20 +118,6 @@ Usage of produce:
         required, CEL transform
 ```
 
-### Filter format
-
-The filtration mechanism is based on the [cel-go][cel-go] package which is implementation of [CEL][cel] spec with some additional extensions:
-
-- `regex`
-- `strings`
-- `encoders`
-- `math`
-- `sets`
-- `lists`
-
-Filter example: [filter.txt](examples/filter.txt).
-The CEL transform can be also useful for the building objects from the scratch, for example to build kafka messages for producing: [restore-transform.txt](examples/restore_transform.txt).
-
 ## Examples
 
 ### Search messages
@@ -136,11 +153,6 @@ Time:   1m1s
 ```shell
 ./build/bin/kafkaquarius-current-linux produce --target-broker=localhost:9094 --target-topic=some-target-topic --template-file=examples/restore_transform.txt --source-file=examples/out.jsonl
 ```
-
-## Pay attention!
-
-By default, you can't to specify source as destination without direct allowance via special flag `--leeroy=true`.
-
 
 [jsonl]: https://jsonlines.org/
 

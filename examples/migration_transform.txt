@@ -1,0 +1,7 @@
+{
+    'Headers': self.Headers,
+    'Key': self.Key,
+    'Value': self.Value,
+    'Timestamp': now(),
+    'TimestampType': 1
+}

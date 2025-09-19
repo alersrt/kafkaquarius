@@ -1,9 +1,9 @@
 {
-    'Headers': [{"Key": "Test", "Value": uuid()}],
-    'Key': uuid(),
-    'Value': {
+    'Headers': [{"Key": 'Test', "Value": bytes(uuid())}],
+    'Key': bytes(uuid()),
+    'Value': marshal({
         'SentTs': now(),
         'Version': self.version,
         'Kinds': self.value.map(s, {'String': s})
-    }
+    })
 }
