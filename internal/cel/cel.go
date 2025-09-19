@@ -76,7 +76,7 @@ func NewCel(expression string) (*Cel, error) {
 			),
 		),
 		cel.Function(funcNameUnmarshal,
-			cel.Overload(funcNameUnmarshal+"from_bytes",
+			cel.Overload(funcNameUnmarshal+"_from_bytes",
 				[]*cel.Type{cel.BytesType}, cel.MapType(cel.StringType, cel.DynType),
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					dst := make(map[string]any)
