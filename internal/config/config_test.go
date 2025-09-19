@@ -11,6 +11,7 @@ func Test(t *testing.T) {
 		{CmdMigrate, []string{"app", CmdMigrate,
 			"--filter-file=/path/to/file",
 			"--source-broker=localhost:9092", "--source-topic=test-topic", "--consumer-group=kafkaquarius",
+			"--leeroy=true",
 		}, CmdMigrate},
 		{CmdSearch, []string{"app", CmdSearch,
 			"--filter-file=/path/to/file",
