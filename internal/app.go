@@ -150,16 +150,16 @@ func (a *App) migrate(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(msg, reflect.TypeFor[kafka.Message]())
+			dst, err := a.eval(msg, reflect.TypeFor[*kafka.Message]())
 			if err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("eval: %v: %+v", err, msg))
 				return
 			}
 
-			kMsg := dst.(kafka.Message)
+			kMsg := dst.(*kafka.Message)
 			kMsg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
-			if err := prod.Produce(&kMsg, nil); err != nil {
+			if err := prod.Produce(kMsg, nil); err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("produce: %v: %+v", err, kMsg))
 				return
@@ -283,16 +283,16 @@ func (a *App) produce(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(obj, reflect.TypeFor[kafka.Message]())
+			dst, err := a.eval(obj, reflect.TypeFor[*kafka.Message]())
 			if err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("eval: %v: %+v", err, obj))
 				return err
 			}
 
-			kMsg := dst.(kafka.Message)
+			kMsg := dst.(*kafka.Message)
 			kMsg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
-			if err := prod.Produce(&kMsg, nil); err != nil {
+			if err := prod.Produce(kMsg, nil); err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("produce: %v: %+v", err, kMsg))
 				return err
