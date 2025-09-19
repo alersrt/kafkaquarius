@@ -77,9 +77,9 @@ func NewCel(expression string) (*Cel, error) {
 		),
 		cel.Function(funcNameUnmarshal,
 			cel.Overload(funcNameUnmarshal+"_from_bytes",
-				[]*cel.Type{cel.BytesType}, cel.MapType(cel.StringType, cel.DynType),
+				[]*cel.Type{cel.BytesType}, cel.DynType,
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
-					dst := make(map[string]any)
+					var dst any
 					if err := json.Unmarshal(value.Value().([]byte), &dst); err != nil {
 						return types.NewErr("cel: %w", err)
 					}
@@ -89,9 +89,9 @@ func NewCel(expression string) (*Cel, error) {
 		),
 		cel.Function(funcNameMarshal,
 			cel.Overload("_to_bytes",
-				[]*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.BytesType,
+				[]*cel.Type{cel.DynType}, cel.BytesType,
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
-					bytes, err := json.Marshal(value.Value().(map[string]any))
+					bytes, err := json.Marshal(value.Value())
 					if err != nil {
 						return types.NewErr("cel: %w", err)
 					}
