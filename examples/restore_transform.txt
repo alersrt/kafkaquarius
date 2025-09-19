@@ -1,7 +1,7 @@
 {
     'Headers': self.Headers != null ? self.Headers.map(h, {'Key': h.Key, 'Value': base64.decode(h.Value)}) : [],
-    'Key': self.Key != null ? base64.decode(self.Key) : b'',
-    'Value': box(self.Value),
+    'Key': self.Key != null ? bytes(self.Key) : b'',
+    'Value': marshal(self.Value),
     'Timestamp': now(),
     'TimestampType': 1
 }

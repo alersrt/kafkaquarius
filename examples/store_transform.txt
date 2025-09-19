@@ -1,5 +1,7 @@
 {
     'Headers': self.Headers,
-    'Key': self.Key,
-    'Value': unbox(self.Value)
+    'Key': string(self.Key),
+    'Value': unmarshal(self.Value),
+    'Timestamp': self.Timestamp,
+    'TimestampType': self.TimestampType
 }

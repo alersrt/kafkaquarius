@@ -1,35 +1,10 @@
 package domain
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"strings"
 	"text/template"
 	"time"
 )
-
-type HeaderString struct {
-	Key   string
-	Value string
-}
-
-type HeaderAny struct {
-	Key   string
-	Value any
-}
-
-type MessageWithStrings struct {
-	*kafka.Message
-	Key     string
-	Value   string
-	Headers []HeaderString
-}
-
-type MessageWithAny struct {
-	*kafka.Message
-	Key     any
-	Value   any
-	Headers []HeaderAny
-}
 
 type Stats struct {
 	Total   uint64

@@ -10,17 +10,16 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 	"github.com/google/uuid"
-	"kafkaquarius/internal/domain"
 	"reflect"
 	"time"
 )
 
 const (
-	varNameSelf   = "self"
-	funcNameUuid  = "uuid"
-	funcNameNow   = "now"
-	funcNameUnbox = "unbox"
-	funcNameBox   = "box"
+	varNameSelf       = "self"
+	funcNameUuid      = "uuid"
+	funcNameNow       = "now"
+	funcNameUnmarshal = "unmarshal"
+	funcNameMarshal   = "marshal"
 )
 
 type Cel struct {
@@ -76,8 +75,8 @@ func NewCel(expression string) (*Cel, error) {
 				}),
 			),
 		),
-		cel.Function(funcNameUnbox,
-			cel.Overload("unbox_bytes",
+		cel.Function(funcNameUnmarshal,
+			cel.Overload(funcNameUnmarshal+"from_bytes",
 				[]*cel.Type{cel.BytesType}, cel.MapType(cel.StringType, cel.DynType),
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					dst := make(map[string]any)
@@ -87,19 +86,9 @@ func NewCel(expression string) (*Cel, error) {
 					return types.DefaultTypeAdapter.NativeToValue(dst)
 				}),
 			),
-			cel.Overload("unbox_string",
-				[]*cel.Type{cel.StringType}, cel.MapType(cel.StringType, cel.DynType),
-				cel.UnaryBinding(func(value ref.Val) ref.Val {
-					dst := make(map[string]any)
-					if err := json.Unmarshal([]byte(value.Value().(string)), &dst); err != nil {
-						return types.NewErr("cel: %w", err)
-					}
-					return types.DefaultTypeAdapter.NativeToValue(dst)
-				}),
-			),
 		),
-		cel.Function(funcNameBox,
-			cel.Overload("box_to_bytes",
+		cel.Function(funcNameMarshal,
+			cel.Overload("_to_bytes",
 				[]*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.BytesType,
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					bytes, err := json.Marshal(value.Value().(map[string]any))
@@ -110,11 +99,7 @@ func NewCel(expression string) (*Cel, error) {
 				}),
 			),
 		),
-		ext.NativeTypes(
-			reflect.TypeFor[kafka.Message](),
-			reflect.TypeFor[domain.MessageWithAny](),
-			reflect.TypeFor[domain.MessageWithStrings](),
-		),
+		ext.NativeTypes(reflect.TypeFor[kafka.Message]()),
 		ext.Strings(),
 		ext.Encoders(),
 		ext.Math(),
