@@ -31,6 +31,7 @@ The CEL transform can be also useful for the building objects from the scratch, 
 Examples:
 
 - filter example: [filter.txt](examples/filter.txt)
+- backup transform: [migration_transform.txt](examples/migration_transform.txt)
 - backup transform: [store_transform.txt](examples/store_transform.txt)
 - restore transform: [restore_transform.txt](examples/restore_transform.txt)
 - build elements from scratch: [data.jsonl](examples/data.jsonl) and [build.txt](examples/build.txt)
