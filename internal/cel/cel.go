@@ -28,7 +28,7 @@ type Cel struct {
 
 func NewCel(expression string) (*Cel, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(varNameSelf, cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable(varNameSelf, cel.DynType),
 		cel.Function(overloads.TypeConvertString, cel.Overload(
 			"map_to_string", []*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.StringType,
 			cel.UnaryBinding(func(value ref.Val) ref.Val {
