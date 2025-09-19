@@ -1,6 +1,6 @@
 {
-    'Headers': [{"Key": 'Test', "Value": marshal(uuid())}],
-    'Key': marshal(uuid()),
+    'Headers': [{"Key": 'Test', "Value": bytes(uuid())}],
+    'Key': bytes(uuid()),
     'Value': marshal({
         'SentTs': now(),
         'Version': self.version,
