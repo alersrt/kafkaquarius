@@ -88,14 +88,14 @@ func NewCel(expression string) (*Cel, error) {
 			),
 		),
 		cel.Function(funcNameMarshal,
-			cel.Overload("_to_bytes",
+			cel.Overload(funcNameUnmarshal+"_to_bytes",
 				[]*cel.Type{cel.DynType}, cel.BytesType,
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
-					bytes, err := json.Marshal(value.Value())
+					bytes, err := json.Marshal(convert(value.Value()))
 					if err != nil {
 						return types.NewErr("cel: %w", err)
 					}
-					return types.DefaultTypeAdapter.NativeToValue(bytes)
+					return types.Bytes(bytes)
 				}),
 			),
 		),
@@ -131,4 +131,25 @@ func (p *Cel) Eval(data any, typeDesc reflect.Type) (any, error) {
 	}
 
 	return eval.ConvertToNative(typeDesc)
+}
+
+func convert(src any) any {
+	switch typed := src.(type) {
+	case map[ref.Val]ref.Val:
+		dst := make(map[string]any)
+		for k, v := range typed {
+			dst[k.Value().(string)] = convert(v)
+		}
+		return dst
+	case []ref.Val:
+		dst := make([]any, len(typed))
+		for i, v := range typed {
+			dst[i] = convert(v)
+		}
+		return dst
+	case ref.Val:
+		return convert(typed.Value())
+	default:
+		return typed
+	}
 }
