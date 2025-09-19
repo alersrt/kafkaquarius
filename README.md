@@ -16,9 +16,7 @@ The key features:
 - Possibility to specify number of threads (consumers) for consuming.
 - Backup messages and restore them from this backup.
 
-## Usage
-
-### Filter and transform format
+## Filter and transform format
 
 The filtration mechanism is based on the [cel-go][cel-go] package which is implementation of [CEL][cel] spec with some additional extensions:
 
@@ -44,7 +42,11 @@ Some additional functions for cel:
 - `marschal(any)` - marshal provided data to bytes
 - `unmarshal([]byte)` - unmarshal bytes to data
 
-### Help
+## Pay attention!
+
+By default, you can't to specify source as destination without direct allowance via special flag `--leeroy=true`.
+
+## Usage
 
 ```
 Usage of kafkaquarius-current-linux:
@@ -150,11 +152,6 @@ Time:   1m1s
 ```shell
 ./build/bin/kafkaquarius-current-linux produce --target-broker=localhost:9094 --target-topic=some-target-topic --template-file=examples/restore_transform.txt --source-file=examples/out.jsonl
 ```
-
-## Pay attention!
-
-By default, you can't to specify source as destination without direct allowance via special flag `--leeroy=true`.
-
 
 [jsonl]: https://jsonlines.org/
 
