@@ -20,6 +20,7 @@ const (
 	funcNameUuid  = "uuid"
 	funcNameNow   = "now"
 	funcNameUnbox = "unbox"
+	funcNameBox   = "box"
 )
 
 type Cel struct {
@@ -94,6 +95,18 @@ func NewCel(expression string) (*Cel, error) {
 						return types.NewErr("cel: %w", err)
 					}
 					return types.DefaultTypeAdapter.NativeToValue(dst)
+				}),
+			),
+		),
+		cel.Function(funcNameBox,
+			cel.Overload("box_to_bytes",
+				[]*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.BytesType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					bytes, err := json.Marshal(value.Value().(map[string]any))
+					if err != nil {
+						return types.NewErr("cel: %w", err)
+					}
+					return types.DefaultTypeAdapter.NativeToValue(bytes)
 				}),
 			),
 		),

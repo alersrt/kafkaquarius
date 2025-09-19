@@ -1,5 +1,5 @@
 {
     'Headers': self.Headers,
     'Key': self.Key,
-    'Value': self.Value
+    'Value': unbox(self.Value)
 }
