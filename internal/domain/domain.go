@@ -7,23 +7,28 @@ import (
 	"time"
 )
 
-type Header struct {
+type HeaderString struct {
 	Key   string
 	Value string
+}
+
+type HeaderAny struct {
+	Key   string
+	Value any
 }
 
 type MessageWithStrings struct {
 	*kafka.Message
 	Key     string
 	Value   string
-	Headers []Header
+	Headers []HeaderString
 }
 
 type MessageWithAny struct {
 	*kafka.Message
 	Key     any
 	Value   any
-	Headers []Header
+	Headers []HeaderAny
 }
 
 type Stats struct {

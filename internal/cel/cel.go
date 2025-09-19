@@ -3,12 +3,15 @@ package cel
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/overloads"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 	"github.com/google/uuid"
+	"kafkaquarius/internal/domain"
+	"reflect"
 	"time"
 )
 
@@ -25,7 +28,7 @@ type Cel struct {
 
 func NewCel(expression string) (*Cel, error) {
 	env, err := cel.NewEnv(
-		cel.Variable(varNameSelf, cel.DynType),
+		cel.Variable(varNameSelf, cel.MapType(cel.StringType, cel.DynType)),
 		cel.Function(overloads.TypeConvertString, cel.Overload(
 			"map_to_string", []*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.StringType,
 			cel.UnaryBinding(func(value ref.Val) ref.Val {
@@ -76,26 +79,29 @@ func NewCel(expression string) (*Cel, error) {
 			cel.Overload("unbox_bytes",
 				[]*cel.Type{cel.BytesType}, cel.MapType(cel.StringType, cel.DynType),
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
-					var dst map[string]any
+					dst := make(map[string]any)
 					if err := json.Unmarshal(value.Value().([]byte), &dst); err != nil {
 						return types.NewErr("cel: %w", err)
 					}
-					return types.NewStringInterfaceMap(nil, dst)
+					return types.DefaultTypeAdapter.NativeToValue(dst)
 				}),
 			),
 			cel.Overload("unbox_string",
 				[]*cel.Type{cel.StringType}, cel.MapType(cel.StringType, cel.DynType),
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
-					var dst map[string]any
+					dst := make(map[string]any)
 					if err := json.Unmarshal([]byte(value.Value().(string)), &dst); err != nil {
 						return types.NewErr("cel: %w", err)
 					}
-					return types.NewStringInterfaceMap(nil, dst)
+					return types.DefaultTypeAdapter.NativeToValue(dst)
 				}),
 			),
 		),
-		cel.OptionalTypes(),
-		ext.Regex(),
+		ext.NativeTypes(
+			reflect.TypeFor[kafka.Message](),
+			reflect.TypeFor[domain.MessageWithAny](),
+			reflect.TypeFor[domain.MessageWithStrings](),
+		),
 		ext.Strings(),
 		ext.Encoders(),
 		ext.Math(),
@@ -120,42 +126,11 @@ func NewCel(expression string) (*Cel, error) {
 	return &Cel{prog: prog}, nil
 }
 
-func (p *Cel) Eval(data any) (any, error) {
+func (p *Cel) Eval(data any, typeDesc reflect.Type) (any, error) {
 	eval, _, err := p.prog.Eval(map[string]any{varNameSelf: data})
 	if err != nil {
 		return nil, fmt.Errorf("cel: eval: %v", err)
 	}
 
-	switch eV := eval.Value().(type) {
-	case bool,
-		string,
-		int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64,
-		complex64, complex128:
-		return eV, nil
-	default:
-		return convert(eV), nil
-	}
-}
-
-func convert(src any) any {
-	switch typed := src.(type) {
-	case map[ref.Val]ref.Val:
-		dst := make(map[string]any)
-		for k, v := range typed {
-			dst[k.Value().(string)] = convert(v)
-		}
-		return dst
-	case []ref.Val:
-		dst := make([]any, len(typed))
-		for i, v := range typed {
-			dst[i] = convert(v)
-		}
-		return dst
-	case ref.Val:
-		return convert(typed.Value())
-	default:
-		return typed
-	}
+	return eval.ConvertToNative(typeDesc)
 }

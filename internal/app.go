@@ -11,6 +11,7 @@ import (
 	"kafkaquarius/internal/domain"
 	"log/slog"
 	"os"
+	"reflect"
 	"sync/atomic"
 	"time"
 
@@ -138,11 +139,10 @@ func (a *App) migrate(ctx context.Context) error {
 		func(msg *kafka.Message) {
 			a.stats.totalCnt.Add(1)
 
-			obj, _ := json.Marshal(domain.FromKafkaWithAny(msg))
-			found, err := a.check(obj, false)
+			found, err := a.check(msg, false)
 			if err != nil {
 				a.stats.errCnt.Add(1)
-				slog.Error(fmt.Sprintf("check: %v: %s", err, string(obj)))
+				slog.Error(fmt.Sprintf("check: %v: %+v", err, msg))
 				return
 			}
 			if !found {
@@ -150,16 +150,16 @@ func (a *App) migrate(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(obj)
+			dst, err := a.eval(msg, reflect.TypeFor[kafka.Message]())
 			if err != nil {
 				a.stats.errCnt.Add(1)
-				slog.Error(fmt.Sprintf("eval: %v: %s", err, string(obj)))
+				slog.Error(fmt.Sprintf("eval: %v: %+v", err, msg))
 				return
 			}
 
-			kMsg := domain.ToKafkaWithAny(dst.(*domain.MessageWithAny))
+			kMsg := dst.(kafka.Message)
 			kMsg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
-			if err := prod.Produce(kMsg, nil); err != nil {
+			if err := prod.Produce(&kMsg, nil); err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("produce: %v: %+v", err, kMsg))
 				return
@@ -221,7 +221,7 @@ func (a *App) search(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(msg)
+			dst, err := a.eval(msg, reflect.TypeFor[map[string]any]())
 			if err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("eval: %v: %+v", err, msg))
@@ -271,11 +271,11 @@ func (a *App) produce(ctx context.Context) error {
 			}
 			a.stats.totalCnt.Add(1)
 
-			obj := []byte(scanner.Text())
-			found, err := a.check(obj, true)
+			obj := domain.Des([]byte(scanner.Text()))
+			found, err := a.check(scanner.Text(), true)
 			if err != nil {
 				a.stats.errCnt.Add(1)
-				slog.Error(fmt.Sprintf("check: %v: %s", err, string(obj)))
+				slog.Error(fmt.Sprintf("check: %v: %+v", err, obj))
 				return err
 			}
 			if !found {
@@ -283,16 +283,16 @@ func (a *App) produce(ctx context.Context) error {
 			}
 			a.stats.foundCnt.Add(1)
 
-			dst, err := a.eval(obj)
+			dst, err := a.eval(obj, reflect.TypeFor[kafka.Message]())
 			if err != nil {
 				a.stats.errCnt.Add(1)
-				slog.Error(fmt.Sprintf("eval: %v: %s", err, string(obj)))
+				slog.Error(fmt.Sprintf("eval: %v: %+v", err, obj))
 				return err
 			}
 
-			kMsg := domain.ToKafkaWithAny(dst.(*domain.MessageWithAny))
+			kMsg := dst.(kafka.Message)
 			kMsg.TopicPartition = kafka.TopicPartition{Topic: &a.cfg.TargetTopic, Partition: kafka.PartitionAny}
-			if err := prod.Produce(kMsg, nil); err != nil {
+			if err := prod.Produce(&kMsg, nil); err != nil {
 				a.stats.errCnt.Add(1)
 				slog.Error(fmt.Sprintf("produce: %v: %+v", err, kMsg))
 				return err
@@ -304,7 +304,7 @@ func (a *App) produce(ctx context.Context) error {
 
 func (a *App) check(self any, def bool) (bool, error) {
 	if a.filter != nil {
-		ev, err := a.filter.Eval(self)
+		ev, err := a.filter.Eval(self, reflect.TypeFor[bool]())
 		if err != nil {
 			return false, err
 		}
@@ -313,9 +313,9 @@ func (a *App) check(self any, def bool) (bool, error) {
 	return def, nil
 }
 
-func (a *App) eval(self any) (any, error) {
+func (a *App) eval(self any, typeDesc reflect.Type) (any, error) {
 	if a.transform != nil {
-		return a.transform.Eval(self)
+		return a.transform.Eval(self, typeDesc)
 	}
 	return self, nil
 }

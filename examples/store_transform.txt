@@ -1,5 +1,5 @@
 {
-    'Headers': self.Headers != null ? self.Headers : [],
-    'Key': has(self.Key) ? self.Key : '',
-    'Value': has(self.Value) ? self.Value : '',
+    'Headers': self.Headers,
+    'Key': self.Key,
+    'Value': self.Value
 }
