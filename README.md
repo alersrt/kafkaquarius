@@ -20,11 +20,13 @@ The key features:
 
 The filtration mechanism is based on the [cel-go][cel-go] package which is implementation of [CEL][cel] spec with some additional extensions:
 
-- `strings`
-- `encoders`
-- `math`
-- `sets`
-- `lists`
+- [`bingings`](https://pkg.go.dev/github.com/google/cel-go/ext#Bindings)
+- [`strings`](https://pkg.go.dev/github.com/google/cel-go/ext#Strings)
+- [`encoders`](https://pkg.go.dev/github.com/google/cel-go/ext#Encoders)
+- [`math`](https://pkg.go.dev/github.com/google/cel-go/ext#Math)
+- [`sets`](https://pkg.go.dev/github.com/google/cel-go/ext#Sets)
+- [`lists`](https://pkg.go.dev/github.com/google/cel-go/ext#Lists)
+- [`two_var_comprehensions`](https://pkg.go.dev/github.com/google/cel-go/ext#TwoVarComprehensions)
 
 The CEL transform can be also useful for the building objects from the scratch, for example to build kafka messages for producing or supplying backup and restoring.
 

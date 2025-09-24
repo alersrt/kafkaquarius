@@ -3,6 +3,9 @@ package cel
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/overloads"
@@ -10,8 +13,6 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
 )
 
 const (
@@ -100,6 +101,7 @@ func NewCel(expression string) (*Cel, error) {
 			),
 		),
 		ext.NativeTypes(reflect.TypeFor[kafka.Message]()),
+        ext.Bindings(),
 		ext.Strings(),
 		ext.Encoders(),
 		ext.Math(),

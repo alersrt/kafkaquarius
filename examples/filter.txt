@@ -1,4 +1,4 @@
-Value.some == 0
+unmarshal(Value).some == 0
 && Headers.key1 in ['value']
 && Headers.size() != 0
 && string(Key).matches(".*test_key.*")
