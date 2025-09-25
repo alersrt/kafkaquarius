@@ -76,6 +76,66 @@ func NewCel(expression string) (*Cel, error) {
 				}),
 			),
 		),
+		cel.Function("unixSubmilliseconds",
+			cel.MemberOverload("timestamp_to_epoch_seconds_with_millis",
+				[]*cel.Type{cel.TimestampType}, cel.DoubleType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					ts, ok := value.Value().(time.Time)
+					if !ok {
+						return types.NewErr("cel: not a timestamp")
+					}
+
+					return types.Double(float64(ts.UnixMilli()) / 1000)
+				}),
+			),
+		),
+		cel.Function("unix",
+			cel.MemberOverload("timestamp_to_epoch_seconds",
+				[]*cel.Type{cel.TimestampType}, cel.IntType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					ts, ok := value.Value().(time.Time)
+					if !ok {
+						return types.NewErr("cel: not a timestamp")
+					}
+					return types.Int(ts.Unix())
+				}),
+			),
+		),
+		cel.Function("unixMilli",
+			cel.MemberOverload("timestamp_to_epoch_milliseconds",
+				[]*cel.Type{cel.TimestampType}, cel.IntType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					ts, ok := value.Value().(time.Time)
+					if !ok {
+						return types.NewErr("cel: not a timestamp")
+					}
+					return types.Int(ts.UnixMilli())
+				}),
+			),
+		),
+		cel.Function(overloads.TypeConvertTimestamp,
+			cel.Overload("string_to_timestamp_with_parse",
+				[]*cel.Type{cel.StringType, cel.StringType}, cel.TimestampType,
+				cel.FunctionBinding(func(values ...ref.Val) ref.Val {
+					if len(values) != 2 {
+						return types.NewErr("cel: two args expected")
+					}
+					prs, okL := values[0].Value().(string)
+					if !okL {
+						return types.NewErr("cel: layout is not a string")
+					}
+					str, okS := values[1].Value().(string)
+					if !okS {
+						return types.NewErr("cel: value is not a string")
+					}
+					ts, err := time.Parse(prs, str)
+					if err != nil {
+						return types.NewErr("cel: %w", err)
+					}
+					return types.Timestamp{Time: ts}
+				}),
+			),
+		),
 		cel.Function(funcNameUnmarshal,
 			cel.Overload(funcNameUnmarshal+"_from_bytes",
 				[]*cel.Type{cel.BytesType}, cel.DynType,
@@ -101,7 +161,7 @@ func NewCel(expression string) (*Cel, error) {
 			),
 		),
 		ext.NativeTypes(reflect.TypeFor[kafka.Message]()),
-        ext.Bindings(),
+		ext.Bindings(),
 		ext.Strings(),
 		ext.Encoders(),
 		ext.Math(),
@@ -149,6 +209,8 @@ func convert(src any) any {
 			dst[i] = convert(v)
 		}
 		return dst
+	case types.Null:
+		return nil
 	case ref.Val:
 		return convert(typed.Value())
 	default:
