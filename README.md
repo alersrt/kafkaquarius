@@ -44,6 +44,10 @@ Some additional functions for cel:
 - `now()` - generates current timestamp
 - `marschal(any)` - marshal provided data to bytes
 - `unmarshal([]byte)` - unmarshal bytes to data
+- `timestamp(layout, value)` - builds timestamp from value by layout based on Go's [formats](https://go.dev/src/time/format.go)
+- `<timestamp>.unix()` - get unix time in seconds
+- `<timestamp>.unixMilli()` - get unix time in milliseconds
+- `<timestamp>.unixSubmilli()` - get unix time in seconds with milliseconds as fractional part
 
 ## Pay attention!
 
