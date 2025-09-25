@@ -76,8 +76,8 @@ func NewCel(expression string) (*Cel, error) {
 				}),
 			),
 		),
-		cel.Function("unixSubmilliseconds",
-			cel.MemberOverload("timestamp_to_epoch_seconds_with_millis",
+		cel.Function("unixSubmilli",
+			cel.MemberOverload("timestamp_to_epoch_seconds_with_submillis",
 				[]*cel.Type{cel.TimestampType}, cel.DoubleType,
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					ts, ok := value.Value().(time.Time)
