@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/araddon/dateparse"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/overloads"
@@ -84,7 +85,6 @@ func NewCel(expression string) (*Cel, error) {
 					if !ok {
 						return types.NewErr("cel: not a timestamp")
 					}
-
 					return types.Double(float64(ts.UnixMilli()) / 1000)
 				}),
 			),
@@ -114,21 +114,14 @@ func NewCel(expression string) (*Cel, error) {
 			),
 		),
 		cel.Function(overloads.TypeConvertTimestamp,
-			cel.Overload("string_to_timestamp_with_parse",
-				[]*cel.Type{cel.StringType, cel.StringType}, cel.TimestampType,
-				cel.FunctionBinding(func(values ...ref.Val) ref.Val {
-					if len(values) != 2 {
-						return types.NewErr("cel: two args expected")
+			cel.Overload(overloads.StringToTimestamp,
+				[]*cel.Type{cel.StringType}, cel.TimestampType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					str, ok := value.Value().(string)
+					if !ok {
+						return types.NewErr("cel: not a string")
 					}
-					prs, okL := values[0].Value().(string)
-					if !okL {
-						return types.NewErr("cel: layout is not a string")
-					}
-					str, okS := values[1].Value().(string)
-					if !okS {
-						return types.NewErr("cel: value is not a string")
-					}
-					ts, err := time.Parse(prs, str)
+					ts, err := dateparse.ParseAny(str, dateparse.PreferMonthFirst(false))
 					if err != nil {
 						return types.NewErr("cel: %w", err)
 					}
