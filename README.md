@@ -2,51 +2,80 @@
 
 CLI tool for Kafka's messages migration. It can be useful for the next cases:
 
-- You need to resend Kafka's messages to the same or another topic or even broker. And especially if you need to do it with filtration.
-- You need to search some messages in concrete topic and store them.
-- You need to send messages from stored backup or build them from provided data with template.
+-   You need to resend Kafka's messages to the same or another topic or even broker. And especially if you need to do it with filtration.
+-   You need to search some messages in concrete topic and store them.
+-   You need to send messages from stored backup or build them from provided data with template.
 
 This app provides these possibilities.
 
 The key features:
 
-- Search messages with possibility to save them in [JSON Line][jsonl] format
-- Migrate messages between topics and clusters.
-- Possibility to specify time range for speed up.
-- Possibility to specify number of threads (consumers) for consuming.
-- Backup messages and restore them from this backup.
+-   Search messages with possibility to save them in [JSON Line][jsonl] format
+-   Migrate messages between topics and clusters.
+-   Possibility to specify time range for speed up.
+-   Possibility to specify number of threads (consumers) for consuming.
+-   Backup messages and restore them from this backup.
 
 ## Filter and transform format
 
 The filtration mechanism is based on the [cel-go][cel-go] package which is implementation of [CEL][cel] spec with some additional extensions:
 
-- [`bingings`](https://pkg.go.dev/github.com/google/cel-go/ext#Bindings)
-- [`strings`](https://pkg.go.dev/github.com/google/cel-go/ext#Strings)
-- [`encoders`](https://pkg.go.dev/github.com/google/cel-go/ext#Encoders)
-- [`math`](https://pkg.go.dev/github.com/google/cel-go/ext#Math)
-- [`sets`](https://pkg.go.dev/github.com/google/cel-go/ext#Sets)
-- [`lists`](https://pkg.go.dev/github.com/google/cel-go/ext#Lists)
-- [`two_var_comprehensions`](https://pkg.go.dev/github.com/google/cel-go/ext#TwoVarComprehensions)
+-   [`bingings`](https://pkg.go.dev/github.com/google/cel-go/ext#Bindings)
+-   [`strings`](https://pkg.go.dev/github.com/google/cel-go/ext#Strings)
+-   [`encoders`](https://pkg.go.dev/github.com/google/cel-go/ext#Encoders)
+-   [`math`](https://pkg.go.dev/github.com/google/cel-go/ext#Math)
+-   [`sets`](https://pkg.go.dev/github.com/google/cel-go/ext#Sets)
+-   [`lists`](https://pkg.go.dev/github.com/google/cel-go/ext#Lists)
+-   [`two_var_comprehensions`](https://pkg.go.dev/github.com/google/cel-go/ext#TwoVarComprehensions)
 
 The CEL transform can be also useful for the building objects from the scratch, for example to build kafka messages for producing or supplying backup and restoring.
 
 Examples:
 
-- filter example: [filter.txt](examples/filter.txt)
-- backup transform: [migration_transform.txt](examples/migration_transform.txt)
-- backup transform: [store_transform.txt](examples/store_transform.txt)
-- restore transform: [restore_transform.txt](examples/restore_transform.txt)
-- build elements from scratch: [data.jsonl](examples/data.jsonl) and [build.txt](examples/build.txt)
+-   filter example: [filter.txt](examples/filter.txt)
+-   backup transform: [migration_transform.txt](examples/migration_transform.txt)
+-   backup transform: [store_transform.txt](examples/store_transform.txt)
+-   restore transform: [restore_transform.txt](examples/restore_transform.txt)
+-   build elements from scratch: [data.jsonl](examples/data.jsonl) and [build.txt](examples/build.txt)
+
+Entrypoint source is `self` variable.
+
+Kafka message format description:
+
+```json
+{
+    "TopicPartition": {
+        "Topic": "<topic name>",
+        "Partition": 10,
+        "Offset": 0,
+        "Metadata": null,
+        "Error": null,
+        "LeaderEpoch": 0
+    },
+    "Value": "<bytes>",
+    "Key": "<bytes>",
+    "Timestamp": "2024-10-30T05:00:05.734+07:00",
+    "TimestampType": 1,
+    "Opaque": null,
+    "Headers": [
+        {
+            "Key": "<header name>",
+            "Value": "<bytes>"
+        }
+    ],
+    "LeaderEpoch": 0
+}
+```
 
 Some additional functions for cel:
 
-- `uuid()` - generates random uuid, also available `uuid(b'...'` and `uuid("...")`
-- `now()` - generates current timestamp
-- `marschal(any)` - marshal provided data to bytes
-- `unmarshal([]byte)` - unmarshal bytes to data
-- `<timestamp>.unix()` - get unix time in seconds
-- `<timestamp>.unixMilli()` - get unix time in milliseconds
-- `<timestamp>.unixSubmilli()` - get unix time in seconds with milliseconds as fractional part
+-   `uuid()` - generates random uuid, also available `uuid(b'...'` and `uuid("...")`
+-   `now()` - generates current timestamp
+-   `marschal(any)` - marshal provided data to bytes
+-   `unmarshal([]byte)` - unmarshal bytes to data
+-   `<timestamp>.unix()` - get unix time in seconds
+-   `<timestamp>.unixMilli()` - get unix time in milliseconds
+-   `<timestamp>.unixSubmilli()` - get unix time in seconds with milliseconds as fractional part
 
 ## Pay attention!
 
@@ -94,7 +123,7 @@ Usage of search:
   -filter-file string
         required, CEL filter
   -output-file string
-        
+
   -since-time int
         unix epoch time, 0 by default
   -source-broker string
@@ -160,7 +189,5 @@ Time:   1m1s
 ```
 
 [jsonl]: https://jsonlines.org/
-
 [cel]: https://github.com/google/cel-spec
-
 [cel-go]: https://github.com/google/cel-go
