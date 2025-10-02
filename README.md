@@ -20,6 +20,8 @@ The key features:
 
 The filtration mechanism is based on the [cel-go][cel-go] package which is implementation of [CEL][cel] spec with some additional extensions:
 
+-   [`optional_types`](https://pkg.go.dev/github.com/google/cel-go/cel#OptionalTypes)
+-   [`regex`](https://pkg.go.dev/github.com/google/cel-go/ext#Regex)
 -   [`bingings`](https://pkg.go.dev/github.com/google/cel-go/ext#Bindings)
 -   [`strings`](https://pkg.go.dev/github.com/google/cel-go/ext#Strings)
 -   [`encoders`](https://pkg.go.dev/github.com/google/cel-go/ext#Encoders)
