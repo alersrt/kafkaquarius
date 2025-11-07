@@ -1,10 +1,11 @@
 package cel
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 func TestFilter(t *testing.T) {
@@ -12,6 +13,7 @@ func TestFilter(t *testing.T) {
 && self.Headers.exists(h, h.Value in [b'value', b'wrong'])
 && self.Headers.size() != 0
 && string(self.Key).matches(".*test_key.*")
+&& uuid.v7() != ''
 && self.Timestamp > timestamp('1970-01-01T00:00:00.000Z')
 `
 	testedUnit, err := NewCel(filterContent)
@@ -38,11 +40,12 @@ func TestFilter(t *testing.T) {
 }
 
 func BenchmarkFilter_Eval(b *testing.B) {
-	filterContent := `Value.some == 0
-&& Headers.key1 in ['value']
-&& Headers.size() != 0
-&& Key.kf == 'test_key'
-&& Timestamp > timestamp('1970-01-01T00:00:00.000Z')
+	filterContent := `unmarshal(self.Value).some == 0
+&& self.Headers.exists(h, h.Value in [b'value', b'wrong'])
+&& self.Headers.size() != 0
+&& string(self.Key).matches(".*test_key.*")
+&& uuid.v7() != ''
+&& self.Timestamp > timestamp('1970-01-01T00:00:00.000Z')
 `
 	testedUnit, _ := NewCel(filterContent)
 
@@ -57,6 +60,6 @@ func BenchmarkFilter_Eval(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		_, _ = testedUnit.Eval(msg, reflect.TypeFor[*kafka.Message]())
+		_, _ = testedUnit.Eval(msg, reflect.TypeFor[bool]())
 	}
 }
