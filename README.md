@@ -72,7 +72,7 @@ Kafka message format description:
 Some additional functions for cel:
 
 -   `uuid()` - generates random uuid (v4), also available `uuid(b'...'` and `uuid("...")`
--   `uuid.v[1,4,6,7]()` - generates uuid of specified version (`uuid.v1()`, `uuid.v4`, `uuid.v6` or `uuid.v7`)
+-   `uuid.v[1,4,6,7]()` - generates uuid of specified version (`uuid.v1()`, `uuid.v4()`, `uuid.v6()` or `uuid.v7()`)
 -   `marschal(any)` - marshal provided data to bytes
 -   `unmarshal([]byte)` - unmarshal bytes to data
 -   `<timestamp>.unix()` - get unix time in seconds
