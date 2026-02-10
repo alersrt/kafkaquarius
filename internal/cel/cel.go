@@ -17,7 +17,11 @@ import (
 )
 
 const (
-	varNameSelf = "self"
+	varNameSelf         = "self"
+	errCelCommon        = "cel: %w"
+	errCelNotATimestamp = "cel: not a timestamp"
+	errCelInit          = "cel: init: %v"
+	errCelEval          = "cel: eval: %v"
 )
 
 type Cel struct {
@@ -32,7 +36,7 @@ func NewCel(expression string) (*Cel, error) {
 			cel.UnaryBinding(func(value ref.Val) ref.Val {
 				b, err := json.Marshal(value.Value())
 				if err != nil {
-					return types.NewErr("cel: %w", err)
+					return types.NewErr(errCelCommon, err)
 				}
 				return types.String(b)
 			}),
@@ -43,7 +47,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.FunctionBinding(func(values ...ref.Val) ref.Val {
 					u, err := uuid.NewUUID()
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.String(u.String())
 				}),
@@ -55,7 +59,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.FunctionBinding(func(values ...ref.Val) ref.Val {
 					u, err := uuid.NewRandom()
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.String(u.String())
 				}),
@@ -67,7 +71,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.FunctionBinding(func(values ...ref.Val) ref.Val {
 					u, err := uuid.NewV6()
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.String(u.String())
 				}),
@@ -79,7 +83,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.FunctionBinding(func(values ...ref.Val) ref.Val {
 					u, err := uuid.NewV7()
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.String(u.String())
 				}),
@@ -97,7 +101,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					parsed, err := uuid.ParseBytes(value.Value().([]byte))
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.String(parsed.String())
 				}),
@@ -107,7 +111,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					parsed, err := uuid.Parse(value.Value().(string))
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.String(parsed.String())
 				}),
@@ -127,7 +131,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					ts, ok := value.Value().(time.Time)
 					if !ok {
-						return types.NewErr("cel: not a timestamp")
+						return types.NewErr(errCelNotATimestamp)
 					}
 					return types.Double(float64(ts.UnixMilli()) / 1000)
 				}),
@@ -139,7 +143,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					ts, ok := value.Value().(time.Time)
 					if !ok {
-						return types.NewErr("cel: not a timestamp")
+						return types.NewErr(errCelNotATimestamp)
 					}
 					return types.Int(ts.Unix())
 				}),
@@ -151,7 +155,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					ts, ok := value.Value().(time.Time)
 					if !ok {
-						return types.NewErr("cel: not a timestamp")
+						return types.NewErr(errCelNotATimestamp)
 					}
 					return types.Int(ts.UnixMilli())
 				}),
@@ -167,7 +171,7 @@ func NewCel(expression string) (*Cel, error) {
 					}
 					ts, err := dateparse.ParseAny(str, dateparse.PreferMonthFirst(false))
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.Timestamp{Time: ts}
 				}),
@@ -179,7 +183,7 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					var dst any
 					if err := json.Unmarshal(value.Value().([]byte), &dst); err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.DefaultTypeAdapter.NativeToValue(dst)
 				}),
@@ -191,9 +195,35 @@ func NewCel(expression string) (*Cel, error) {
 				cel.UnaryBinding(func(value ref.Val) ref.Val {
 					bytes, err := json.Marshal(convert(value.Value()))
 					if err != nil {
-						return types.NewErr("cel: %w", err)
+						return types.NewErr(errCelCommon, err)
 					}
 					return types.Bytes(bytes)
+				}),
+			),
+		),
+		cel.Function("switch.case",
+			cel.Overload("switch.case",
+				[]*cel.Type{cel.ListType(cel.ListType(cel.AnyType))}, cel.DynType,
+				cel.UnaryBinding(func(value ref.Val) ref.Val {
+					values, err := value.ConvertToNative(reflect.TypeFor[[][]any]())
+					if err != nil {
+						return types.NewErr(errCelCommon, err)
+					}
+					for _, value := range values.([][]any) {
+						if len(value) != 2 {
+							return types.NewErr("cel: switch.case: wrong args amount")
+						}
+						predicate, ok := value[0].(bool)
+						if !ok {
+							return types.NewErr("cel: switch.case: not a predicate")
+						}
+						if predicate {
+							return types.DefaultTypeAdapter.NativeToValue(value[1])
+						} else {
+							continue
+						}
+					}
+					return types.NullType
 				}),
 			),
 		),
@@ -209,17 +239,17 @@ func NewCel(expression string) (*Cel, error) {
 		ext.TwoVarComprehensions(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("cel: init: %v", err)
+		return nil, fmt.Errorf(errCelInit, err)
 	}
 
 	ast, iss := env.Compile(expression)
 	if iss != nil && iss.Err() != nil {
-		return nil, fmt.Errorf("cel: init: %v", iss.Err())
+		return nil, fmt.Errorf(errCelInit, iss.Err())
 	}
 
 	prog, err := env.Program(ast)
 	if err != nil {
-		return nil, fmt.Errorf("cel: init: %v", err)
+		return nil, fmt.Errorf(errCelInit, err)
 	}
 
 	return &Cel{prog: prog}, nil
@@ -228,7 +258,7 @@ func NewCel(expression string) (*Cel, error) {
 func (p *Cel) Eval(data any, typeDesc reflect.Type) (any, error) {
 	eval, _, err := p.prog.Eval(map[string]any{varNameSelf: data})
 	if err != nil {
-		return nil, fmt.Errorf("cel: eval: %v", err)
+		return nil, fmt.Errorf(errCelEval, err)
 	}
 
 	return eval.ConvertToNative(typeDesc)
