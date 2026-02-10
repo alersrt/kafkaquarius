@@ -87,7 +87,7 @@ unmarshal([]byte) → {'key': 'value'}
 -   `<timestamp>.unix()` - get unix time in seconds
 -   `<timestamp>.unixMilli()` - get unix time in milliseconds
 -   `<timestamp>.unixSubmilli()` - get unix time in seconds with milliseconds as fractional part
--   `switch.case([][]any)` - get the specified result for the first true predicate
+-   `switch.case([][]any)` - get the specified value for the first true predicate
 ```
 cel.bind(var1, {'key': 'oldValue'}, switch.case([
     [var1.key == 'oldValue', 'newValue'],
