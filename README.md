@@ -71,13 +71,30 @@ Kafka message format description:
 
 Some additional functions for cel:
 
--   `uuid()` - generates random uuid (v4), also available `uuid(b'...'` and `uuid("...")`
+-   `uuid()` - generates random uuid (v4), also available `uuid(b'...')` and `uuid("...")`
+```
+uuid()
+```
 -   `uuid.v[1,4,6,7]()` - generates uuid of specified version (`uuid.v1()`, `uuid.v4()`, `uuid.v6()` or `uuid.v7()`)
 -   `marschal(any)` - marshal provided data to bytes
+```
+marshal({'key': 'value'}) → []byte
+```
 -   `unmarshal([]byte)` - unmarshal bytes to data
+```
+unmarshal([]byte) → {'key': 'value'}
+```
 -   `<timestamp>.unix()` - get unix time in seconds
 -   `<timestamp>.unixMilli()` - get unix time in milliseconds
 -   `<timestamp>.unixSubmilli()` - get unix time in seconds with milliseconds as fractional part
+-   `switch.case([][]any)` - get the specified result for the first true predicate
+```
+cel.bind(var1, {'key': 'oldValue'}, switch.case([
+    [var1.key == 'oldValue', 'newValue'],
+    [var1.key == 'newValue', 'oldValue'],
+    [var1.key == 'value', 'value']
+])) → 'oldValue'
+```
 
 ## Pay attention!
 

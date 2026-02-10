@@ -15,6 +15,10 @@ func TestFilter(t *testing.T) {
 && string(self.Key).matches(".*test_key.*")
 && uuid.v7() != ''
 && self.Timestamp > timestamp('1970-01-01T00:00:00.000Z')
+&& switch.case([
+    [unmarshal(self.Value).some != 0, false],
+    [unmarshal(self.Value).some == 0, true]
+])
 `
 	testedUnit, err := NewCel(filterContent)
 	if err != nil {
