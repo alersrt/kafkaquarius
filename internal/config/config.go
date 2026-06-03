@@ -213,9 +213,5 @@ func NewConfig(args []string) (string, *Config, error) {
 		return cmd, nil, valErrs
 	}
 
-	println(cfg.SinceTime.String())
-	println(cfg.ToTime.String())
-	println(cfg.FlushTimeout.String())
-
 	return cmd, cfg, nil
 }
