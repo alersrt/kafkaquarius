@@ -257,7 +257,7 @@ func (a *App) produce(ctx context.Context) error {
 	defer prod.Close()
 
 	scanner := bufio.NewScanner(source)
-	timeoutMs := 5 * 1000
+	timeoutMs := int(a.cfg.FlushTimeout.Milliseconds())
 	for {
 		select {
 		case <-ctx.Done():

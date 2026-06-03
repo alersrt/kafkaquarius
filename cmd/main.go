@@ -21,7 +21,10 @@ const (
 func main() {
 	var err error
 	cmd, cfg, err := config.NewConfig(os.Args)
-	if err != nil || cfg == nil {
+	if err == nil && cfg == nil {
+		os.Exit(ExitCodeInvalidUsage)
+	}
+	if err != nil {
 		slog.Error(fmt.Sprintf("%v", err))
 		os.Exit(ExitCodeInvalidUsage)
 	}
