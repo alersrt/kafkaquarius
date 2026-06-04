@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"time"
 )
@@ -15,31 +14,47 @@ const (
 	CmdProduce = "produce"
 )
 
-const (
-	MaxSec = math.MaxInt64 - (1969*365+1969/4-1969/100+1969/400)*24*60*60
-)
+// List layouts from the most specific to the most generic
+var iso8601Layouts = []string{
+	time.RFC3339,           // 2006-01-02T15:04:05Z07:00
+	time.RFC3339Nano,       // 2006-01-02T15:04:05.999999999Z07:00
+	"2006-01-02T15:04:05",  // Missing timezone offset
+	"20060102T150405Z0700", // Basic compressed layout
+	"2006-01-02",           // Date only (ISO 8601 / time.DateOnly)
+}
+
+func ParseFlexibleISO8601(val string) (time.Time, error) {
+	for _, layout := range iso8601Layouts {
+		if t, err := time.Parse(layout, val); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, errors.New("failed to parse string with any known ISO8601 layout")
+}
 
 type Config struct {
-	FilterFile    string    `json:"filter_file,omitempty"`
-	TemplateFile  string    `json:"template_file,omitempty"`
-	OutputFile    string    `json:"output_file,omitempty"`
-	SourceFile    string    `json:"source_file,omitempty"`
-	SourceBroker  string    `json:"source_broker,omitempty"`
-	TargetBroker  string    `json:"target_broker,omitempty"`
-	SourceTopic   string    `json:"source_topic,omitempty"`
-	TargetTopic   string    `json:"target_topic,omitempty"`
-	ConsumerGroup string    `json:"consumer_group,omitempty"`
-	ThreadsNumber int       `json:"threads_number,omitempty"`
-	SinceTime     time.Time `json:"since_time,omitempty"`
-	ToTime        time.Time `json:"to_time,omitempty"`
+	FilterFile    string        `json:"filter_file,omitempty"`
+	TemplateFile  string        `json:"template_file,omitempty"`
+	OutputFile    string        `json:"output_file,omitempty"`
+	SourceFile    string        `json:"source_file,omitempty"`
+	SourceBroker  string        `json:"source_broker,omitempty"`
+	TargetBroker  string        `json:"target_broker,omitempty"`
+	SourceTopic   string        `json:"source_topic,omitempty"`
+	TargetTopic   string        `json:"target_topic,omitempty"`
+	ConsumerGroup string        `json:"consumer_group,omitempty"`
+	ThreadsNumber int           `json:"threads_number,omitempty"`
+	SinceTime     time.Time     `json:"since_time,omitempty"`
+	ToTime        time.Time     `json:"to_time,omitempty"`
+	FlushTimeout  time.Duration `json:"flush_timeout,omitempty"`
 }
 
 // NewConfig parses flags and returns list of parsed values in the Config struct.
 func NewConfig(args []string) (string, *Config, error) {
 	cfg := new(Config)
 
-	sinceTime := int64(0)
-	toTime := int64(0)
+	sinceTime := ""
+	toTime := ""
+	flushTimeout := ""
 	leeroy := false
 
 	migrateSet := flag.NewFlagSet(CmdMigrate, flag.ExitOnError)
@@ -51,8 +66,8 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.StringVar(&cfg.TargetBroker, "target-broker", "", "--source-broker is used if empty")
 	migrateSet.StringVar(&cfg.TargetTopic, "target-topic", "", "--source-topic is used if empty")
 	migrateSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
-	migrateSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
-	migrateSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, infinity by default")
+	migrateSet.StringVar(&sinceTime, "since-time", "1970-01-01T00:00:00", "ISO-8601 datetime")
+	migrateSet.StringVar(&toTime, "to-time", "9999-12-31T23:59:59", "ISO-8601 datetime")
 	migrateSet.BoolVar(&leeroy, "leeroy", false, "fatuity and courage")
 
 	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
@@ -63,8 +78,8 @@ func NewConfig(args []string) (string, *Config, error) {
 	searchSet.StringVar(&cfg.SourceTopic, "source-topic", "", "required")
 	searchSet.StringVar(&cfg.OutputFile, "output-file", "", "")
 	searchSet.IntVar(&cfg.ThreadsNumber, "threads-number", 1, "")
-	searchSet.Int64Var(&sinceTime, "since-time", 0, "unix epoch time, 0 by default")
-	searchSet.Int64Var(&toTime, "to-time", 0, "unix epoch time, infinity by default")
+	searchSet.StringVar(&sinceTime, "since-time", "1970-01-01T00:00:00", "ISO-8601 datetime")
+	searchSet.StringVar(&toTime, "to-time", "9999-12-31T23:59:59", "ISO-8601 datetime")
 
 	produceSet := flag.NewFlagSet(CmdProduce, flag.ExitOnError)
 	produceSet.StringVar(&cfg.TargetBroker, "target-broker", "", "required")
@@ -72,6 +87,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	produceSet.StringVar(&cfg.SourceFile, "source-file", "", "required, JSONL")
 	produceSet.StringVar(&cfg.TemplateFile, "template-file", "", "required, CEL transform")
 	produceSet.StringVar(&cfg.FilterFile, "filter-file", "", "optional, CEL filter")
+	produceSet.StringVar(&flushTimeout, "flush-timeout", "5m", "optional, set the producer flush timeout")
 
 	flag.Usage = func() {
 		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch, CmdProduce)
@@ -169,20 +185,24 @@ func NewConfig(args []string) (string, *Config, error) {
 		if cfg.TemplateFile == "" {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --template-file"))
 		}
+		var err error
+		cfg.FlushTimeout, err = time.ParseDuration(flushTimeout)
+		if err != nil {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --flush-timeout has wrong format"))
+		}
 
 	default:
 		return "", nil, fmt.Errorf("wrong cmd")
 	}
 
-	if sinceTime == 0 {
-		cfg.SinceTime = time.Time{}
-	} else {
-		cfg.SinceTime = time.Unix(sinceTime, 0)
+	var err error
+	cfg.SinceTime, err = ParseFlexibleISO8601(sinceTime)
+	if err != nil {
+		valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --since-time has wrong format"))
 	}
-	if toTime == 0 {
-		cfg.ToTime = time.Unix(MaxSec, 0)
-	} else {
-		cfg.ToTime = time.Unix(toTime, 0)
+	cfg.ToTime, err = ParseFlexibleISO8601(toTime)
+	if err != nil {
+		valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --to-time has wrong format"))
 	}
 
 	if cfg.SinceTime.After(cfg.ToTime) {

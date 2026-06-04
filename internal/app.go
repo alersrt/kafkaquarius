@@ -249,7 +249,8 @@ func (a *App) produce(ctx context.Context) error {
 	}()
 
 	prod, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": a.cfg.TargetBroker,
+		"bootstrap.servers":   a.cfg.TargetBroker,
+		"go.delivery.reports": false,
 	})
 	if err != nil {
 		return err
@@ -257,7 +258,7 @@ func (a *App) produce(ctx context.Context) error {
 	defer prod.Close()
 
 	scanner := bufio.NewScanner(source)
-	timeoutMs := 5 * 1000
+	timeoutMs := int(a.cfg.FlushTimeout.Milliseconds())
 	for {
 		select {
 		case <-ctx.Done():

@@ -117,8 +117,8 @@ Usage of migrate:
         required, CEL filter
   -leeroy
         fatuity and courage
-  -since-time int
-        unix epoch time, 0 by default
+  -since-time string
+        ISO-8601 datetime (default "1970-01-01T00:00:00")
   -source-broker string
         required
   -source-topic string
@@ -131,20 +131,21 @@ Usage of migrate:
         optional, CEL transform
   -threads-number int
          (default 1)
-  -to-time int
-        unix epoch time, infinity by default
+  -to-time string
+        ISO-8601 datetime (default "9999-12-31T23:59:59")
 ```
 
 ```
+Usage of search:
 Usage of search:
   -consumer-group string
         required
   -filter-file string
         required, CEL filter
   -output-file string
-
-  -since-time int
-        unix epoch time, 0 by default
+    
+  -since-time string
+        ISO-8601 datetime (default "1970-01-01T00:00:00")
   -source-broker string
         required
   -source-topic string
@@ -153,14 +154,16 @@ Usage of search:
         optional, CEL transform
   -threads-number int
          (default 1)
-  -to-time int
-        unix epoch time, infinity by default
+  -to-time string
+        ISO-8601 datetime (default "9999-12-31T23:59:59")
 ```
 
 ```
 Usage of produce:
   -filter-file string
         optional, CEL filter
+  -flush-timeout string
+        optional, set the producer flush timeout (default "5m")
   -source-file string
         required, JSONL
   -target-broker string
