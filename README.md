@@ -163,7 +163,7 @@ Usage of produce:
   -filter-file string
         optional, CEL filter
   -flush-timeout string
-        optional, set the producer flush timeout (5 second)" (default "5m")
+        optional, set the producer flush timeout (default "5m")
   -source-file string
         required, JSONL
   -target-broker string
