@@ -249,7 +249,8 @@ func (a *App) produce(ctx context.Context) error {
 	}()
 
 	prod, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": a.cfg.TargetBroker,
+		"bootstrap.servers":   a.cfg.TargetBroker,
+		"go.delivery.reports": false,
 	})
 	if err != nil {
 		return err
