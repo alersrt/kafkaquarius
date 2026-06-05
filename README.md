@@ -115,6 +115,8 @@ Usage of migrate:
         required
   -filter-file string
         required, CEL filter
+  -flush-timeout string
+        optional, set the producer flush timeout (default "5m")
   -leeroy
         fatuity and courage
   -since-time string
@@ -133,8 +135,6 @@ Usage of migrate:
          (default 1)
   -to-time string
         ISO-8601 datetime (default "9999-12-31T23:59:59")
-```
-
 ```
 Usage of search:
 Usage of search:

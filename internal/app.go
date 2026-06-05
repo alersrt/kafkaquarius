@@ -123,12 +123,15 @@ func (a *App) Execute(ctx context.Context, cmd string) error {
 
 func (a *App) migrate(ctx context.Context) error {
 	prod, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": a.cfg.TargetBroker,
+		"bootstrap.servers":   a.cfg.TargetBroker,
+		"go.delivery.reports": false,
 	})
 	if err != nil {
 		return err
 	}
-	defer prod.Close()
+	defer func() {
+		prod.Flush(int(a.cfg.FlushTimeout.Milliseconds()))
+	}()
 
 	return a.pCons.Do(
 		ctx,

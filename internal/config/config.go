@@ -69,6 +69,7 @@ func NewConfig(args []string) (string, *Config, error) {
 	migrateSet.StringVar(&sinceTime, "since-time", "1970-01-01T00:00:00", "ISO-8601 datetime")
 	migrateSet.StringVar(&toTime, "to-time", "9999-12-31T23:59:59", "ISO-8601 datetime")
 	migrateSet.BoolVar(&leeroy, "leeroy", false, "fatuity and courage")
+	migrateSet.StringVar(&flushTimeout, "flush-timeout", "5m", "optional, set the producer flush timeout")
 
 	searchSet := flag.NewFlagSet(CmdSearch, flag.ExitOnError)
 	searchSet.StringVar(&cfg.FilterFile, "filter-file", "", "required, CEL filter")
@@ -138,6 +139,12 @@ func NewConfig(args []string) (string, *Config, error) {
 
 		if cfg.SourceBroker == cfg.TargetBroker && cfg.SourceTopic == cfg.TargetTopic && !leeroy {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: not Leeroy: the source coincides with the destination"))
+		}
+
+		var err error
+		cfg.FlushTimeout, err = time.ParseDuration(flushTimeout)
+		if err != nil {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --flush-timeout has wrong format"))
 		}
 
 	case CmdSearch:
