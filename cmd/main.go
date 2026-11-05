@@ -55,14 +55,20 @@ func main() {
 	case <-ctx.Done():
 	}
 
-	slog.Info(fmt.Sprintf("%s: %s", cmd, app.Stats().FormattedString(`statistic:
+	sentence := `statistic:
 Time:	{{ .Time }}
 Total:	{{ .Total }}
 Found:	{{ .Found }}
 Proc:	{{ .Proc }}
 Errors:	{{ .Errors }}
 Offsets:	{{ .Offsets }}
-`)))
+`
+	if cmd == config.CmdCheck || cmd == config.CmdSplit {
+		sentence = `statistic:
+Time:	{{ .Time }}
+`
+	}
+	slog.Info(fmt.Sprintf("%s: %s", cmd, app.Stats().FormattedString(sentence)))
 
 	if err != nil {
 		slog.Error(fmt.Sprintf("%s: %v", cmd, err))

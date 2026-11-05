@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -12,6 +14,8 @@ const (
 	CmdMigrate = "migrate"
 	CmdSearch  = "search"
 	CmdProduce = "produce"
+	CmdCheck   = "check"
+	CmdSplit   = "split"
 )
 
 // List layouts from the most specific to the most generic
@@ -46,6 +50,11 @@ type Config struct {
 	SinceTime     time.Time     `json:"since_time,omitempty"`
 	ToTime        time.Time     `json:"to_time,omitempty"`
 	FlushTimeout  time.Duration `json:"flush_timeout,omitempty"`
+
+	ExpressionFile      string `json:"expression_file,omitempty"`
+	ExpressionNodeLimit int    `json:"expression_nodes,omitempty"`
+	ExpressionSizeLimit int    `json:"expression_size,omitempty"`
+	OutputDirectory     string `json:"output_directory,omitempty"`
 }
 
 // NewConfig parses flags and returns list of parsed values in the Config struct.
@@ -90,8 +99,19 @@ func NewConfig(args []string) (string, *Config, error) {
 	produceSet.StringVar(&cfg.FilterFile, "filter-file", "", "optional, CEL filter")
 	produceSet.StringVar(&flushTimeout, "flush-timeout", "5m", "optional, set the producer flush timeout")
 
+	checkSet := flag.NewFlagSet(CmdCheck, flag.ExitOnError)
+	checkSet.StringVar(&cfg.ExpressionFile, "file", "", "required, CEL filter or transform")
+	checkSet.IntVar(&cfg.ExpressionNodeLimit, "expr-node-limit", 0, "required, expression node limit")
+	checkSet.IntVar(&cfg.ExpressionSizeLimit, "expr-size-limit", 100_000, "optional, expression code point limit")
+
+	splitSet := flag.NewFlagSet(CmdSplit, flag.ExitOnError)
+	splitSet.StringVar(&cfg.ExpressionFile, "file", "", "required, CEL filter or transform")
+	splitSet.IntVar(&cfg.ExpressionNodeLimit, "expr-node-limit", 0, "required, expression node limit")
+	splitSet.IntVar(&cfg.ExpressionSizeLimit, "expr-size-limit", 100_000, "optional, expression code point limit")
+	splitSet.StringVar(&cfg.OutputDirectory, "output-dir", ".", "optional, directory for the resulting transforms")
+
 	flag.Usage = func() {
-		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch, CmdProduce)
+		_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n%s\n%s\n%s\n%s\n%s\n", os.Args[0], CmdMigrate, CmdSearch, CmdProduce, CmdCheck, CmdSplit)
 		if err != nil {
 			return
 		}
@@ -198,6 +218,46 @@ func NewConfig(args []string) (string, *Config, error) {
 			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --flush-timeout has wrong format"))
 		}
 
+	case CmdCheck:
+		if len(args) < 3 {
+			checkSet.Usage()
+			return "", nil, nil
+		}
+
+		if err := checkSet.Parse(args[2:]); err != nil {
+			return CmdCheck, nil, err
+		}
+
+		if cfg.ExpressionFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --file"))
+		}
+		if cfg.ExpressionNodeLimit <= 0 {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --expr-node-limit must be positive"))
+		}
+		if cfg.ExpressionSizeLimit <= 0 {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --expr-size-limit must be positive"))
+		}
+
+	case CmdSplit:
+		if len(args) < 3 {
+			splitSet.Usage()
+			return "", nil, nil
+		}
+
+		if err := splitSet.Parse(args[2:]); err != nil {
+			return CmdSplit, nil, err
+		}
+
+		if cfg.ExpressionFile == "" {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: missed --file"))
+		}
+		if cfg.ExpressionNodeLimit <= 0 {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --expr-node-limit must be positive"))
+		}
+		if cfg.ExpressionSizeLimit <= 0 {
+			valErrs = errors.Join(valErrs, fmt.Errorf("cfg: --expr-size-limit must be positive"))
+		}
+
 	default:
 		return "", nil, fmt.Errorf("wrong cmd")
 	}
@@ -220,5 +280,36 @@ func NewConfig(args []string) (string, *Config, error) {
 		return cmd, nil, valErrs
 	}
 
+	cfg.normalizePaths()
 	return cmd, cfg, nil
+}
+
+// normalizePaths expands a leading ~ and cleans path values. The shell does
+// not expand ~ in forms like --flag=~/dir, so the application handles it.
+func (c *Config) normalizePaths() {
+	c.FilterFile = normalizePath(c.FilterFile)
+	c.TemplateFile = normalizePath(c.TemplateFile)
+	c.OutputFile = normalizePath(c.OutputFile)
+	c.SourceFile = normalizePath(c.SourceFile)
+	c.ExpressionFile = normalizePath(c.ExpressionFile)
+	c.OutputDirectory = normalizePath(c.OutputDirectory)
+}
+
+func normalizePath(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	switch {
+	case path == "~":
+		if home, err := os.UserHomeDir(); err == nil {
+			path = home
+		}
+	case strings.HasPrefix(path, "~/"):
+		if home, err := os.UserHomeDir(); err == nil {
+			path = filepath.Join(home, path[2:])
+		}
+	}
+
+	return filepath.Clean(path)
 }

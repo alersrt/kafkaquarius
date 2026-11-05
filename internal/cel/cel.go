@@ -21,6 +21,7 @@ const (
 	errCelCommon        = "cel: %w"
 	errCelNotATimestamp = "cel: not a timestamp"
 	errCelInit          = "cel: init: %v"
+	errCelParse         = "cel: parse: %v"
 	errCelEval          = "cel: eval: %v"
 )
 
@@ -28,8 +29,8 @@ type Cel struct {
 	prog cel.Program
 }
 
-func NewCel(expression string) (*Cel, error) {
-	env, err := cel.NewEnv(
+func newEnv(opts ...cel.EnvOption) (*cel.Env, error) {
+	envOpts := []cel.EnvOption{
 		cel.Variable(varNameSelf, cel.DynType),
 		cel.Function(overloads.TypeConvertString, cel.Overload(
 			"map_to_string", []*cel.Type{cel.MapType(cel.StringType, cel.DynType)}, cel.StringType,
@@ -228,6 +229,7 @@ func NewCel(expression string) (*Cel, error) {
 			),
 		),
 		cel.OptionalTypes(),
+		cel.EnableMacroCallTracking(),
 		ext.NativeTypes(reflect.TypeFor[kafka.Message]()),
 		ext.Regex(),
 		ext.Bindings(),
@@ -237,9 +239,21 @@ func NewCel(expression string) (*Cel, error) {
 		ext.Sets(),
 		ext.Lists(),
 		ext.TwoVarComprehensions(),
-	)
+	}
+
+	envOpts = append(envOpts, opts...)
+	env, err := cel.NewEnv(envOpts...)
 	if err != nil {
 		return nil, fmt.Errorf(errCelInit, err)
+	}
+
+	return env, nil
+}
+
+func NewCel(expression string) (*Cel, error) {
+	env, err := newEnv()
+	if err != nil {
+		return nil, err
 	}
 
 	ast, iss := env.Compile(expression)
