@@ -138,7 +138,8 @@ Usage of migrate:
   -to-time string
         ISO-8601 datetime (default "9999-12-31T23:59:59")
 ```
-Usage of search:
+
+```
 Usage of search:
   -consumer-group string
         required
@@ -204,8 +205,8 @@ CEL expressions can be checked against expression node and code point limits
 and split into independent partial transforms with `check` and `split`.
 
 ```shell
-./build/bin/kafkaquarius-current-linux check --file=examples/migration_transform.txt --expr-node-limit=100
-./build/bin/kafkaquarius-current-linux split --file=examples/migration_transform.txt --expr-node-limit=100 --output-dir=examples/split
+./build/bin/kafkaquarius-current-linux check --file=examples/migration_transform.txt --expr-node-limit=100000
+./build/bin/kafkaquarius-current-linux split --file=examples/migration_transform.txt --expr-node-limit=100000 --output-dir=examples/split
 ```
 
 `--expr-size-limit` defaults to 100000 code points, which matches the cel-go
