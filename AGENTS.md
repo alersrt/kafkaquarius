@@ -3,8 +3,7 @@
 ## Scope
 
 - Work **only inside this repository** (the current workspace root).
-- Do not read, create, or modify files outside the current directory, including
-  the `GOPATH` location configured for tooling in `.vscode/settings.json`.
+- Do not read, create, or modify files outside the current directory.
 - Do not edit `vendor/` by hand; manage dependencies through `go.mod`/`go.sum`.
 
 ## Project
@@ -22,13 +21,20 @@ and restore. Filters/transforms are CEL expressions (see `examples/*.txt`).
 
 Go tooling is configured in `.vscode/settings.json`:
 
-- `go.gopath` and the `GOPATH` environment variable are set there (machine-specific
-  path; do not hardcode or replicate it elsewhere).
+- `go.gopath` and `terminal.integrated.env.linux.GOPATH` set the Go workspace path.
+  It is machine-specific, so never hardcode it in files or commands. Instead, read
+  the value from `.vscode/settings.json` and use it for the current shell:
+
+  ```bash
+  export GOPATH="$(sed -n 's/.*"GOPATH": "\([^"]*\)".*/\1/p' .vscode/settings.json)"
+  ```
+
+- Run all Go commands (`make`, `go build`, `go test`, `go vet`, `go run`) in a
+  shell where `GOPATH` is set this way, from the repository root.
 - VS Code launch config `main.go: debug` runs `cmd/main.go` with
   `--config=${workspaceFolder}/examples/config.yaml` from the workspace root.
 
-Do not change these settings unless explicitly asked. All commands below must be
-executed from the repository root.
+Do not change these settings unless explicitly asked.
 
 ## Build and dependencies
 
@@ -52,8 +58,11 @@ There is no `make test` target; run Go tooling directly:
 ```bash
 go test ./...
 go vet ./...
-gofmt -l .
+gofmt -l cmd internal
 ```
+
+Use `gofmt -l cmd internal` rather than `gofmt -l .`: the repository contains
+`.go/` (module cache) and `vendor/`, which must not be reformatted or scanned.
 
 Add or update `_test.go` files for changed code. Tests live next to the code
 (e.g. `internal/cel/cel_test.go`). Fix all test, vet, and formatting issues before
