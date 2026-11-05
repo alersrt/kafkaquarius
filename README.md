@@ -107,6 +107,8 @@ Usage of kafkaquarius-current-linux:
 migrate
 search
 produce
+check
+split
 ```
 
 ```
@@ -115,6 +117,8 @@ Usage of migrate:
         required
   -filter-file string
         required, CEL filter
+  -flush-timeout string
+        optional, set the producer flush timeout (default "5m")
   -leeroy
         fatuity and courage
   -since-time string
@@ -133,8 +137,6 @@ Usage of migrate:
          (default 1)
   -to-time string
         ISO-8601 datetime (default "9999-12-31T23:59:59")
-```
-
 ```
 Usage of search:
 Usage of search:
@@ -173,6 +175,51 @@ Usage of produce:
   -template-file string
         required, CEL transform
 ```
+
+```
+Usage of check:
+  -expr-node-limit int
+        required, expression node limit
+  -expr-size-limit int
+        optional, expression code point limit (default 100000)
+  -file string
+        required, CEL filter or transform
+```
+
+```
+Usage of split:
+  -expr-node-limit int
+        required, expression node limit
+  -expr-size-limit int
+        optional, expression code point limit (default 100000)
+  -file string
+        required, CEL filter or transform
+  -output-dir string
+        optional, directory for the resulting transforms (default ".")
+```
+
+## Expression node limit
+
+CEL expressions can be checked against expression node and code point limits
+and split into independent partial transforms with `check` and `split`.
+
+```shell
+./build/bin/kafkaquarius-current-linux check --file=examples/migration_transform.txt --expr-node-limit=100
+./build/bin/kafkaquarius-current-linux split --file=examples/migration_transform.txt --expr-node-limit=100 --output-dir=examples/split
+```
+
+`--expr-size-limit` defaults to 100000 code points, which matches the cel-go
+parser default. `split` uses top-level map entries, list elements and `&&`/`||`
+operands as split boundaries. Each resulting file fits into both the specified
+node and code point limits, and the parts are meant to be combined by merging
+maps, appending lists or conjoining filters respectively. When a single entry
+is still too large, `split` descends into the largest nested map, list or
+struct and re-wraps each part (for example, splitting the inner map inside
+`{ "Value": marshal({...}) }`). If the expression cannot be split below the
+limits, the command fails with an error. Re-running `split`
+replaces stale numbered parts for the same input file. Path options expand a
+leading `~` and normalize `.`/`..`, including the `--flag=~/dir` form that the
+shell does not expand on its own.
 
 ## Examples
 

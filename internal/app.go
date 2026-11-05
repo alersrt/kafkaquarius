@@ -11,7 +11,9 @@ import (
 	"kafkaquarius/internal/domain"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -19,11 +21,12 @@ import (
 )
 
 type App struct {
-	pCons     *consumer.ParallelConsumer
-	transform *cel.Cel
-	filter    *cel.Cel
-	cfg       *config.Config
-	stats     struct {
+	pCons      *consumer.ParallelConsumer
+	transform  *cel.Cel
+	filter     *cel.Cel
+	expression string
+	cfg        *config.Config
+	stats      struct {
 		startTs  time.Time
 		totalCnt atomic.Uint64
 		foundCnt atomic.Uint64
@@ -47,6 +50,14 @@ func (a *App) Init(cmd string, cfg *config.Config) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if cmd == config.CmdCheck || cmd == config.CmdSplit {
+		expression, err := os.ReadFile(cfg.ExpressionFile)
+		if err != nil {
+			return err
+		}
+		a.expression = string(expression)
 	}
 
 	if cfg.FilterFile != "" {
@@ -116,19 +127,113 @@ func (a *App) Execute(ctx context.Context, cmd string) error {
 		err = a.search(ctx)
 	case config.CmdProduce:
 		err = a.produce(ctx)
+	case config.CmdCheck:
+		err = a.checkExpression()
+	case config.CmdSplit:
+		err = a.splitExpression()
 	}
 
 	return err
 }
 
+func (a *App) checkExpression() error {
+	count, err := cel.CheckNodeLimit(a.expression, a.cfg.ExpressionNodeLimit)
+	if err != nil {
+		return err
+	}
+	size, err := cel.CheckSizeLimit(a.expression, a.cfg.ExpressionSizeLimit)
+	if err != nil {
+		return err
+	}
+
+	slog.Info(fmt.Sprintf(
+		"check: expression has %d nodes and %d code points, limits are %d nodes / %d code points",
+		count, size, a.cfg.ExpressionNodeLimit, a.cfg.ExpressionSizeLimit,
+	))
+	return nil
+}
+
+func (a *App) splitExpression() error {
+	parts, err := cel.Split(a.expression, a.cfg.ExpressionNodeLimit, a.cfg.ExpressionSizeLimit)
+	if err != nil {
+		return err
+	}
+
+	outputDir := a.cfg.OutputDirectory
+	if outputDir == "" {
+		outputDir = "."
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return err
+	}
+
+	base := filepath.Base(a.cfg.ExpressionFile)
+	ext := filepath.Ext(base)
+	prefix := strings.TrimSuffix(base, ext)
+
+	tempDir, err := os.MkdirTemp(outputDir, "."+prefix+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	names := make([]string, len(parts))
+	counts := make([]int, len(parts))
+	sizes := make([]int, len(parts))
+	for i, part := range parts {
+		name := fmt.Sprintf("%s.%d%s", prefix, i, ext)
+		if err := os.WriteFile(filepath.Join(tempDir, name), []byte(part), 0o644); err != nil {
+			return err
+		}
+		count, err := cel.CheckNodeLimit(part, a.cfg.ExpressionNodeLimit)
+		if err != nil {
+			return err
+		}
+		size, err := cel.CheckSizeLimit(part, a.cfg.ExpressionSizeLimit)
+		if err != nil {
+			return err
+		}
+		names[i] = name
+		counts[i] = count
+		sizes[i] = size
+	}
+
+	pattern := filepath.Join(outputDir, prefix+".[0-9]*"+ext)
+	stale, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+	for _, path := range stale {
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+	}
+
+	for i, name := range names {
+		path := filepath.Join(outputDir, name)
+		if err := os.Rename(filepath.Join(tempDir, name), path); err != nil {
+			return err
+		}
+		slog.Info(fmt.Sprintf("split: %s: %d nodes, %d code points", path, counts[i], sizes[i]))
+	}
+
+	slog.Info(fmt.Sprintf("split: created %d transform(s) in %s", len(parts), outputDir))
+	return nil
+}
+
 func (a *App) migrate(ctx context.Context) error {
 	prod, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": a.cfg.TargetBroker,
+		"bootstrap.servers":   a.cfg.TargetBroker,
+		"go.delivery.reports": false,
 	})
 	if err != nil {
 		return err
 	}
-	defer prod.Close()
+	defer func() {
+		prod.Flush(int(a.cfg.FlushTimeout.Milliseconds()))
+	}()
 
 	return a.pCons.Do(
 		ctx,
